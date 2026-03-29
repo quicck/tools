@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文字全画面表示</title>
+    <style>
+        /* 1. フォントの設定：教科書体を優先 */
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #ffffff;
+            font-family: "Yu Kyokasho", "YuMincho", "Hiragino Mincho ProN", "MS Mincho", serif;
+            overflow: hidden;
+        }
+
+        /* 入力インターフェースのスタイル */
+        #ui-container {
+            text-align: center;
+            transition: opacity 0.3s;
+        }
+
+        input[type="text"] {
+            font-size: 24px;
+            padding: 10px;
+            width: 80%;
+            max-width: 400px;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            outline: none;
+        }
+
+        button {
+            font-size: 24px;
+            padding: 10px 30px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        /* 2. 全画面表示用のテキストスタイル */
+        #display-text {
+            display: none; /* 初期状態は非表示 */
+            font-size: 40vw; /* 画面幅いっぱいに広がるサイズ */
+            font-weight: normal;
+            line-height: 1;
+            white-space: nowrap;
+            user-select: none;
+        }
+
+        /* 全画面モード中のスタイル */
+        :fullscreen #ui-container {
+            display: none;
+        }
+
+        :fullscreen #display-text {
+            display: block;
+        }
+
+        /* ベンダープレフィックス（iOS/Safariなど用） */
+        :-webkit-full-screen #ui-container { display: none; }
+        :-webkit-full-screen #display-text { display: block; }
+    </style>
+</head>
+<body>
+
+    <!-- 入力画面 -->
+    <div id="ui-container">
+        <div>
+            <input type="text" id="text-input" placeholder="表示する文字を入力" autofocus>
+        </div>
+        <button id="submit-btn">決定</button>
+    </div>
+
+    <!-- 表示画面 -->
+    <div id="display-text"></div>
+
+    <script>
+        const uiContainer = document.getElementById('ui-container');
+        const textInput = document.getElementById('text-input');
+        const submitBtn = document.getElementById('submit-btn');
+        const displayText = document.getElementById('display-text');
+
+        function startFullscreen() {
+            const text = textInput.value.trim();
+            if (!text) {
+                alert('文字を入力してください');
+                return;
+            }
+
+            // テキストをセット
+            displayText.textContent = text;
+
+            // 全画面表示を開始
+            const docElm = document.documentElement;
+            if (docElm.requestFullscreen) {
+                docElm.requestFullscreen();
+            } else if (docElm.webkitRequestFullscreen) { /* Safari */
+                docElm.webkitRequestFullscreen();
+            } else if (docElm.msRequestFullscreen) { /* IE11 */
+                docElm.msRequestFullscreen();
+            }
+        }
+
+        // ボタンクリック時
+        submitBtn.addEventListener('click', startFullscreen);
+
+        // Enterキー入力時
+        textInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                startFullscreen();
+            }
+        });
+
+        // 全画面状態が解除されたら入力をクリアしてUIを表示（ブラウザ標準のEsc対応）
+        document.addEventListener('fullscreenchange', handleExit);
+        document.addEventListener('webkitfullscreenchange', handleExit);
+
+        function handleExit() {
+            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+                // 全画面が終わったらテキストを空にする（必要に応じて）
+            }
+        }
+    </script>
+</body>
+</html>
+
