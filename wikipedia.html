@@ -133,6 +133,18 @@
             margin: 0 auto;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Error Box */
+        #errorBox {
+            display: none;
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(255, 59, 48, 0.3);
+            color: #ff3b30;
+            padding: 20px;
+            text-align: center;
+            border-radius: 20px;
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -161,6 +173,12 @@
             <p class="text-gray-500 font-medium">情報を取得中...</p>
         </div>
 
+        <!-- Error Message -->
+        <div id="errorBox" class="fade-in">
+            <p class="font-bold text-lg mb-1">記事が見つかりませんでした</p>
+            <p class="text-sm opacity-80">入力した名前が正しいか確認して、もう一度入力し直してください。</p>
+        </div>
+
         <!-- Article -->
         <main id="articleView" class="hidden glass-panel rounded-ios p-8 md:p-12 mb-12">
             <h1 id="articleTitle" class="text-4xl font-extrabold mb-10 text-gray-900 tracking-tight leading-tight"></h1>
@@ -187,6 +205,7 @@
         const articleView = document.getElementById('articleView');
         const articleTitle = document.getElementById('articleTitle');
         const articleBody = document.getElementById('articleBody');
+        const errorBox = document.getElementById('errorBox');
         const overlay = document.getElementById('overlay');
         const actionSheet = document.getElementById('actionSheetContainer');
         const sheetTitle = document.getElementById('sheetTitle');
@@ -203,36 +222,33 @@
 
         async function fetchWikiData(query) {
             setLoading(true);
+            errorBox.style.display = 'none';
+            
             try {
-                // Find Page Title
-                const sUrl = `https://ja.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*`;
-                const sRes = await fetch(sUrl);
-                const sData = await sRes.json();
-                
-                if (!sData.query.search.length) {
-                    alert("記事が見つかりませんでした。");
-                    setLoading(false);
-                    return;
-                }
-                
-                const title = sData.query.search[0].title;
-
-                // Get Content
-                const pUrl = `https://ja.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(title)}&prop=text&format=json&origin=*`;
+                // 完全一致検索（リダイレクトを自動解決する redirects=1 を使用）
+                const pUrl = `https://ja.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(query)}&prop=text|displaytitle&redirects=1&format=json&origin=*`;
                 const pRes = await fetch(pUrl);
                 const pData = await pRes.json();
 
-                displayArticle(title, pData.parse.text['*']);
+                if (pData.error) {
+                    // 解析に失敗した場合（ページが存在しない場合）
+                    throw new Error("Page Not Found");
+                }
+
+                const displayTitle = pData.parse.displaytitle || query;
+                displayArticle(displayTitle, pData.parse.text['*']);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             } catch (err) {
-                alert("通信エラーが発生しました。");
+                articleView.classList.add('hidden');
+                errorBox.style.display = 'block';
             } finally {
                 setLoading(false);
             }
         }
 
         function displayArticle(title, html) {
-            articleTitle.textContent = title;
+            // HTMLタグがタイトルに含まれる場合があるためinnerHTMLで設定
+            articleTitle.innerHTML = title;
             const temp = document.createElement('div');
             temp.innerHTML = html;
 
