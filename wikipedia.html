@@ -3,20 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Wikipedia Glass Reader</title>
+    <title>Wikipedia Reader</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;600&family=Noto+Sans+JP:wght@400;700&display=swap');
 
         :root {
-            --ios-blur: blur(20px);
+            --ios-blur: blur(40px);
             --ios-bg: rgba(255, 255, 255, 0.7);
-            --ios-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+            --ios-shadow: 0 15px 50px rgba(0, 0, 0, 0.15);
         }
 
         body {
-            font-family: 'SF Pro Display', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
+            font-family: 'SF Pro Display', 'Noto Sans JP', -apple-system, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
             background-attachment: fixed;
             min-height: 100vh;
             margin: 0;
@@ -28,226 +28,281 @@
             background: var(--ios-bg);
             backdrop-filter: var(--ios-blur);
             -webkit-backdrop-filter: var(--ios-blur);
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.4);
             box-shadow: var(--ios-shadow);
-            border-radius: 24px;
         }
 
-        .search-input {
-            background: rgba(255, 255, 255, 0.5);
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
+        .rounded-ios { border-radius: 20px; }
 
-        .search-input:focus {
-            background: rgba(255, 255, 255, 0.9);
-            box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.2);
-            outline: none;
-        }
-
-        /* Wikipedia Content Styling */
+        /* Wikipedia Content Content */
         .wiki-content {
             line-height: 1.8;
             font-size: 1.05rem;
         }
 
-        .wiki-content h2 {
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin: 2rem 0 1rem;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-            padding-bottom: 0.5rem;
-        }
-
-        .wiki-content p {
-            margin-bottom: 1.5rem;
-        }
-
         .wiki-content a {
+            color: #007aff !important;
+            text-decoration: none !important;
+        }
+
+        /* Footnote Jump Animation */
+        .jump-target-highlight {
+            animation: highlight-pulse 2s ease-out;
+        }
+        @keyframes highlight-pulse {
+            0% { background-color: rgba(0, 122, 255, 0.3); border-radius: 6px; }
+            100% { background-color: transparent; }
+        }
+
+        /* iOS Action Sheet System */
+        #overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.3);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            z-index: 100;
+        }
+        #overlay.active { opacity: 1; pointer-events: auto; }
+
+        #actionSheetContainer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 16px;
+            z-index: 101;
+            transform: translateY(100%);
+            transition: transform 0.4s cubic-bezier(0.2, 0.9, 0.4, 1);
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        #actionSheetContainer.active { transform: translateY(0); }
+
+        .sheet-group {
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .action-button {
+            width: 100%;
+            padding: 16px;
+            font-size: 19px;
             color: #007aff;
-            text-decoration: none;
+            background: var(--ios-bg);
+            backdrop-filter: var(--ios-blur);
+            -webkit-backdrop-filter: var(--ios-blur);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            transition: background 0.2s;
+            text-align: center;
+        }
+        .action-button:active { background: rgba(0, 0, 0, 0.05); }
+        .action-button:last-child { border-bottom: none; }
+
+        .sheet-title {
+            padding: 12px 16px;
+            font-size: 13px;
+            color: #8e8e93;
+            background: var(--ios-bg);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            text-align: center;
         }
 
-        .wiki-content ul, .wiki-content ol {
-            margin-bottom: 1.5rem;
-            padding-left: 1.5rem;
+        .cancel-button {
+            width: 100%;
+            padding: 16px;
+            font-size: 19px;
+            font-weight: 600;
+            color: #007aff;
+            background: #fff;
+            border-radius: 14px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
+        .cancel-button:active { background: #f2f2f7; }
 
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar {
-            width: 8px;
+        /* Loader Animation */
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(0, 122, 255, 0.1);
+            border-top-color: #007aff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto;
         }
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: rgba(0, 0, 0, 0.1);
-            border-radius: 10px;
-        }
-
-        .loading-dots:after {
-            content: ' .';
-            animation: dots 1.5s steps(5, end) infinite;
-        }
-
-        @keyframes dots {
-            0%, 20% { content: ' .'; }
-            40% { content: ' ..'; }
-            60% { content: ' ...'; }
-            80%, 100% { content: ''; }
-        }
-
-        .fade-in {
-            animation: fadeIn 0.5s ease-out forwards;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="p-4 md:p-8">
 
     <div class="max-w-4xl mx-auto">
-        <!-- Header / Search Bar -->
-        <header class="glass-panel p-6 mb-8 fade-in">
-            <h1 class="text-3xl font-bold mb-6 text-center text-gray-800">Wikipedia Reader</h1>
+        <!-- Search -->
+        <header class="glass-panel rounded-ios p-6 mb-8 sticky top-4 z-40">
             <div class="relative flex items-center">
                 <input 
                     type="text" 
                     id="searchInput" 
-                    placeholder="キーワードを入力..." 
-                    class="search-input w-full py-4 px-6 rounded-2xl text-lg pr-16"
-                    onkeypress="if(event.key === 'Enter') fetchWikiArticle()"
+                    placeholder="キーワードを入力して検索..." 
+                    class="w-full py-4 px-6 rounded-2xl text-lg bg-white/40 border-none outline-none focus:ring-2 focus:ring-blue-500/30 transition-all pr-14"
                 >
-                <button 
-                    onclick="fetchWikiArticle()" 
-                    class="absolute right-3 bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-xl transition-colors"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <button onclick="handleSearch()" class="absolute right-3 text-blue-500 p-2 hover:scale-110 active:scale-95 transition-transform">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                 </button>
             </div>
         </header>
 
-        <!-- Error Message Container -->
-        <div id="errorBox" class="hidden glass-panel p-4 mb-8 bg-red-50/50 border-red-200 text-red-600 text-center fade-in">
-            記事が見つかりませんでした。
+        <!-- Loader -->
+        <div id="loader" class="hidden py-32 text-center">
+            <div class="spinner mb-4"></div>
+            <p class="text-gray-500 font-medium">情報を取得中...</p>
         </div>
 
-        <!-- Content Area -->
-        <main id="contentArea" class="hidden glass-panel p-8 md:p-12 mb-8 fade-in min-h-[400px]">
-            <h2 id="articleTitle" class="text-4xl font-bold mb-8 text-gray-900 leading-tight"></h2>
-            <div id="articleBody" class="wiki-content text-gray-800">
-                <!-- Content will be injected here -->
-            </div>
+        <!-- Article -->
+        <main id="articleView" class="hidden glass-panel rounded-ios p-8 md:p-12 mb-12">
+            <h1 id="articleTitle" class="text-4xl font-extrabold mb-10 text-gray-900 tracking-tight leading-tight"></h1>
+            <div id="articleBody" class="wiki-content"></div>
         </main>
+    </div>
 
-        <!-- Loading State -->
-        <div id="loadingState" class="hidden text-center py-12">
-            <div class="text-xl font-medium text-blue-600 loading-dots">読み込み中</div>
+    <!-- iOS UI Components -->
+    <div id="overlay"></div>
+    <div id="actionSheetContainer">
+        <!-- Action Group -->
+        <div class="sheet-group rounded-ios glass-panel">
+            <div id="sheetTitle" class="sheet-title truncate">Wikipedia リンク</div>
+            <button id="btnInternal" class="action-button">このページで開く</button>
+            <button id="btnExternal" class="action-button">Wikipediaで開く</button>
         </div>
+        <!-- Cancel Group -->
+        <button id="btnCancel" class="cancel-button">キャンセル</button>
     </div>
 
     <script>
-        async function fetchWikiArticle() {
-            const query = document.getElementById('searchInput').value.trim();
-            if (!query) return;
+        const searchInput = document.getElementById('searchInput');
+        const loader = document.getElementById('loader');
+        const articleView = document.getElementById('articleView');
+        const articleTitle = document.getElementById('articleTitle');
+        const articleBody = document.getElementById('articleBody');
+        const overlay = document.getElementById('overlay');
+        const actionSheet = document.getElementById('actionSheetContainer');
+        const sheetTitle = document.getElementById('sheetTitle');
+        
+        let pendingData = { title: '', url: '' };
 
-            const contentArea = document.getElementById('contentArea');
-            const loadingState = document.getElementById('loadingState');
-            const errorBox = document.getElementById('errorBox');
-            const articleTitle = document.getElementById('articleTitle');
-            const articleBody = document.getElementById('articleBody');
+        // Search Input Logic
+        searchInput.onkeypress = (e) => { if (e.key === 'Enter') handleSearch(); };
 
-            // Reset UI
-            contentArea.classList.add('hidden');
-            errorBox.classList.add('hidden');
-            loadingState.classList.remove('hidden');
+        function handleSearch() {
+            const query = searchInput.value.trim();
+            if (query) fetchWikiData(query);
+        }
 
+        async function fetchWikiData(query) {
+            setLoading(true);
             try {
-                // First, find the exact page title
-                const searchUrl = `https://ja.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*`;
-                const searchResponse = await fetch(searchUrl);
-                const searchData = await searchResponse.json();
-
-                if (!searchData.query.search.length) {
-                    throw new Error('Not Found');
+                // Find Page Title
+                const sUrl = `https://ja.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*`;
+                const sRes = await fetch(sUrl);
+                const sData = await sRes.json();
+                
+                if (!sData.query.search.length) {
+                    alert("記事が見つかりませんでした。");
+                    setLoading(false);
+                    return;
                 }
-
-                const pageTitle = searchData.query.search[0].title;
-
-                // Then, get the full content of that page
-                const contentUrl = `https://ja.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(pageTitle)}&prop=text|displaytitle&format=json&origin=*`;
-                const contentResponse = await fetch(contentUrl);
-                const contentData = await contentResponse.json();
-
-                if (contentData.error) {
-                    throw new Error('Content Error');
-                }
-
-                // Inject data
-                articleTitle.textContent = pageTitle;
                 
-                // Clean up Wikipedia HTML (removing some internal elements not needed)
-                let htmlContent = contentData.parse.text['*'];
-                
-                // Temporary div to manipulate the HTML string
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = htmlContent;
+                const title = sData.query.search[0].title;
 
-                // Remove unnecessary elements common in Wiki API output
-                const selectorsToRemove = [
-                    '.mw-empty-elt', 
-                    '.navbox', 
-                    '.infobox', 
-                    '.metadata', 
-                    '.ambox', 
-                    '.sistersitebox',
-                    'style',
-                    '.mw-editsection',
-                    '.noprint'
-                ];
-                selectorsToRemove.forEach(s => {
-                    const elements = tempDiv.querySelectorAll(s);
-                    elements.forEach(el => el.remove());
-                });
+                // Get Content
+                const pUrl = `https://ja.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(title)}&prop=text&format=json&origin=*`;
+                const pRes = await fetch(pUrl);
+                const pData = await pRes.json();
 
-                // Fix internal links to open in new tab or just be inactive
-                const links = tempDiv.querySelectorAll('a');
-                links.forEach(link => {
-                    const href = link.getAttribute('href');
-                    if (href && href.startsWith('/wiki/')) {
-                        link.setAttribute('href', `https://ja.wikipedia.org${href}`);
-                    }
-                    link.setAttribute('target', '_blank');
-                });
-
-                articleBody.innerHTML = tempDiv.innerHTML;
-
-                // Show Content
-                loadingState.classList.add('hidden');
-                contentArea.classList.remove('hidden');
-                
-                // Smooth scroll to top of content
-                window.scrollTo({ top: contentArea.offsetTop - 40, behavior: 'smooth' });
-
-            } catch (error) {
-                console.error(error);
-                loadingState.classList.add('hidden');
-                errorBox.classList.remove('hidden');
+                displayArticle(title, pData.parse.text['*']);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } catch (err) {
+                alert("通信エラーが発生しました。");
+            } finally {
+                setLoading(false);
             }
         }
 
-        // Handle touch feedback for the search button
-        document.querySelector('button').addEventListener('touchstart', function() {
-            this.style.opacity = '0.7';
+        function displayArticle(title, html) {
+            articleTitle.textContent = title;
+            const temp = document.createElement('div');
+            temp.innerHTML = html;
+
+            // Remove clutter
+            const junk = ['.mw-empty-elt', '.navbox', '.infobox', '.metadata', '.ambox', '.mw-editsection', '.noprint', 'style'];
+            junk.forEach(s => temp.querySelectorAll(s).forEach(el => el.remove()));
+
+            articleBody.innerHTML = temp.innerHTML;
+            articleView.classList.remove('hidden');
+        }
+
+        // Global Event Listener for links (Delegation)
+        articleBody.addEventListener('click', (e) => {
+            const a = e.target.closest('a');
+            if (!a) return;
+
+            const href = a.getAttribute('href');
+            if (!href) return;
+
+            e.preventDefault();
+
+            // Footnote
+            if (href.startsWith('#')) {
+                const targetId = decodeURIComponent(href.substring(1));
+                const target = document.getElementById(targetId) || document.getElementsByName(targetId)[0];
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    target.classList.add('jump-target-highlight');
+                    setTimeout(() => target.classList.remove('jump-target-highlight'), 2000);
+                }
+            } 
+            // Internal Wiki Link
+            else if (href.startsWith('/wiki/') && !href.includes(':')) {
+                const cleanTitle = decodeURIComponent(href.split('/wiki/')[1]).replace(/_/g, ' ');
+                pendingData = { title: cleanTitle, url: `https://ja.wikipedia.org${href}` };
+                
+                sheetTitle.textContent = cleanTitle;
+                overlay.classList.add('active');
+                actionSheet.classList.add('active');
+            }
+            // External
+            else if (href.startsWith('http')) {
+                window.open(href, '_blank');
+            }
         });
-        document.querySelector('button').addEventListener('touchend', function() {
-            this.style.opacity = '1';
-        });
+
+        // UI Modal Actions
+        const closeSheet = () => {
+            overlay.classList.remove('active');
+            actionSheet.classList.remove('active');
+        };
+
+        overlay.onclick = closeSheet;
+        document.getElementById('btnCancel').onclick = closeSheet;
+
+        document.getElementById('btnInternal').onclick = () => {
+            searchInput.value = pendingData.title;
+            closeSheet();
+            fetchWikiData(pendingData.title);
+        };
+
+        document.getElementById('btnExternal').onclick = () => {
+            window.open(pendingData.url, '_blank');
+            closeSheet();
+        };
+
+        function setLoading(state) {
+            loader.classList.toggle('hidden', !state);
+            if (state) articleView.classList.add('hidden');
+        }
     </script>
 </body>
 </html>
