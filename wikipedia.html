@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Wikipedia Glass Reader</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;600&family=Noto+Sans+JP:wght@400;700&display=swap');
+
+        :root {
+            --ios-blur: blur(20px);
+            --ios-bg: rgba(255, 255, 255, 0.7);
+            --ios-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+        }
+
+        body {
+            font-family: 'SF Pro Display', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            margin: 0;
+            color: #1d1d1f;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .glass-panel {
+            background: var(--ios-bg);
+            backdrop-filter: var(--ios-blur);
+            -webkit-backdrop-filter: var(--ios-blur);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: var(--ios-shadow);
+            border-radius: 24px;
+        }
+
+        .search-input {
+            background: rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .search-input:focus {
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.2);
+            outline: none;
+        }
+
+        /* Wikipedia Content Styling */
+        .wiki-content {
+            line-height: 1.8;
+            font-size: 1.05rem;
+        }
+
+        .wiki-content h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 2rem 0 1rem;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            padding-bottom: 0.5rem;
+        }
+
+        .wiki-content p {
+            margin-bottom: 1.5rem;
+        }
+
+        .wiki-content a {
+            color: #007aff;
+            text-decoration: none;
+        }
+
+        .wiki-content ul, .wiki-content ol {
+            margin-bottom: 1.5rem;
+            padding-left: 1.5rem;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+
+        .loading-dots:after {
+            content: ' .';
+            animation: dots 1.5s steps(5, end) infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { content: ' .'; }
+            40% { content: ' ..'; }
+            60% { content: ' ...'; }
+            80%, 100% { content: ''; }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-4xl mx-auto">
+        <!-- Header / Search Bar -->
+        <header class="glass-panel p-6 mb-8 fade-in">
+            <h1 class="text-3xl font-bold mb-6 text-center text-gray-800">Wikipedia Reader</h1>
+            <div class="relative flex items-center">
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    placeholder="キーワードを入力..." 
+                    class="search-input w-full py-4 px-6 rounded-2xl text-lg pr-16"
+                    onkeypress="if(event.key === 'Enter') fetchWikiArticle()"
+                >
+                <button 
+                    onclick="fetchWikiArticle()" 
+                    class="absolute right-3 bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-xl transition-colors"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Error Message Container -->
+        <div id="errorBox" class="hidden glass-panel p-4 mb-8 bg-red-50/50 border-red-200 text-red-600 text-center fade-in">
+            記事が見つかりませんでした。
+        </div>
+
+        <!-- Content Area -->
+        <main id="contentArea" class="hidden glass-panel p-8 md:p-12 mb-8 fade-in min-h-[400px]">
+            <h2 id="articleTitle" class="text-4xl font-bold mb-8 text-gray-900 leading-tight"></h2>
+            <div id="articleBody" class="wiki-content text-gray-800">
+                <!-- Content will be injected here -->
+            </div>
+        </main>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="hidden text-center py-12">
+            <div class="text-xl font-medium text-blue-600 loading-dots">読み込み中</div>
+        </div>
+    </div>
+
+    <script>
+        async function fetchWikiArticle() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) return;
+
+            const contentArea = document.getElementById('contentArea');
+            const loadingState = document.getElementById('loadingState');
+            const errorBox = document.getElementById('errorBox');
+            const articleTitle = document.getElementById('articleTitle');
+            const articleBody = document.getElementById('articleBody');
+
+            // Reset UI
+            contentArea.classList.add('hidden');
+            errorBox.classList.add('hidden');
+            loadingState.classList.remove('hidden');
+
+            try {
+                // First, find the exact page title
+                const searchUrl = `https://ja.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*`;
+                const searchResponse = await fetch(searchUrl);
+                const searchData = await searchResponse.json();
+
+                if (!searchData.query.search.length) {
+                    throw new Error('Not Found');
+                }
+
+                const pageTitle = searchData.query.search[0].title;
+
+                // Then, get the full content of that page
+                const contentUrl = `https://ja.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(pageTitle)}&prop=text|displaytitle&format=json&origin=*`;
+                const contentResponse = await fetch(contentUrl);
+                const contentData = await contentResponse.json();
+
+                if (contentData.error) {
+                    throw new Error('Content Error');
+                }
+
+                // Inject data
+                articleTitle.textContent = pageTitle;
+                
+                // Clean up Wikipedia HTML (removing some internal elements not needed)
+                let htmlContent = contentData.parse.text['*'];
+                
+                // Temporary div to manipulate the HTML string
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = htmlContent;
+
+                // Remove unnecessary elements common in Wiki API output
+                const selectorsToRemove = [
+                    '.mw-empty-elt', 
+                    '.navbox', 
+                    '.infobox', 
+                    '.metadata', 
+                    '.ambox', 
+                    '.sistersitebox',
+                    'style',
+                    '.mw-editsection',
+                    '.noprint'
+                ];
+                selectorsToRemove.forEach(s => {
+                    const elements = tempDiv.querySelectorAll(s);
+                    elements.forEach(el => el.remove());
+                });
+
+                // Fix internal links to open in new tab or just be inactive
+                const links = tempDiv.querySelectorAll('a');
+                links.forEach(link => {
+                    const href = link.getAttribute('href');
+                    if (href && href.startsWith('/wiki/')) {
+                        link.setAttribute('href', `https://ja.wikipedia.org${href}`);
+                    }
+                    link.setAttribute('target', '_blank');
+                });
+
+                articleBody.innerHTML = tempDiv.innerHTML;
+
+                // Show Content
+                loadingState.classList.add('hidden');
+                contentArea.classList.remove('hidden');
+                
+                // Smooth scroll to top of content
+                window.scrollTo({ top: contentArea.offsetTop - 40, behavior: 'smooth' });
+
+            } catch (error) {
+                console.error(error);
+                loadingState.classList.add('hidden');
+                errorBox.classList.remove('hidden');
+            }
+        }
+
+        // Handle touch feedback for the search button
+        document.querySelector('button').addEventListener('touchstart', function() {
+            this.style.opacity = '0.7';
+        });
+        document.querySelector('button').addEventListener('touchend', function() {
+            this.style.opacity = '1';
+        });
+    </script>
+</body>
+</html>
+
