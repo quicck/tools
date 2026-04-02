@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
-            background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -15,189 +15,215 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             margin: 0;
             padding: 20px;
-            overflow-x: hidden;
         }
 
-        /* iOS-style Glassmorphism */
         .glass {
-            background: rgba(255, 255, 255, 0.45);
+            background: rgba(255, 255, 255, 0.6);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.4);
-            border-radius: 32px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 24px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
         }
 
-        /* Fixed-height Scrollable Areas */
         .scroll-container {
-            max-height: 250px;
+            max-height: 180px;
             overflow-y: auto;
-            border-radius: 16px;
-            background: rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.4);
             border: 1px solid rgba(255, 255, 255, 0.2);
-            scrollbar-width: thin;
-            scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
         }
 
-        .scroll-container::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .scroll-container::-webkit-scrollbar-thumb {
-            background-color: rgba(0, 0, 0, 0.1);
-            border-radius: 10px;
-        }
-
-        textarea.input-box {
+        textarea {
             width: 100%;
-            min-height: 200px;
-            padding: 16px;
+            min-height: 180px;
+            padding: 12px;
             background: transparent;
             border: none;
             outline: none;
-            font-size: 1.1rem;
-            line-height: 1.6;
-            color: #1c1c1e;
+            font-size: 1rem;
+            line-height: 1.5;
             resize: none;
-            display: block;
         }
 
         .display-area {
-            padding: 16px;
-            font-size: 1.05rem;
+            padding: 10px;
+            font-size: 0.85rem;
             line-height: 1.6;
-            color: #1c1c1e;
             word-break: break-all;
             white-space: pre-wrap;
         }
 
-        .btn-ios {
+        /* Diff Colors */
+        .match { color: #28a745; font-weight: 500; } /* 一致：緑 */
+        .mismatch { color: #dc3545; font-weight: 500; text-decoration: underline; } /* 誤字：赤 */
+        .missing { color: #adb5bd; background: #e9ecef; border-radius: 2px; margin: 0 1px; } /* 抜け：灰色 */
+
+        .btn-primary {
             background: #007AFF;
             color: white;
-            transition: all 0.2s ease;
-            box-shadow: 0 4px 15px rgba(0, 122, 255, 0.3);
+            transition: all 0.2s;
+        }
+        .btn-primary:active { transform: scale(0.97); }
+
+        .btn-secondary {
+            background: rgba(0, 0, 0, 0.05);
+            color: #555;
+            font-size: 0.75rem;
+            padding: 4px 12px;
+            border-radius: 999px;
+            transition: background 0.2s;
         }
 
-        .btn-ios:active {
-            transform: scale(0.96);
-            background: #0062cc;
-        }
-
-        .step-hidden {
-            display: none;
-        }
-
-        .fade-in {
-            animation: fadeIn 0.4s ease-out forwards;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .label-text {
-            color: #3a3a3c;
-            font-weight: 600;
-            font-size: 0.9rem;
-            margin-bottom: 8px;
-            display: block;
-            padding-left: 4px;
-        }
+        .step-hidden { display: none; }
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 <body>
 
-    <div class="glass w-full max-w-md p-6 space-y-6">
-        <h1 class="text-2xl font-bold text-[#1c1c1e] text-center py-2">丸暗記練習</h1>
+    <div class="glass w-full max-w-md p-6 space-y-5">
+        <h1 class="text-xl font-bold text-gray-800 text-center">丸暗記練習</h1>
 
-        <!-- Step 1: Input Original -->
-        <div id="step1" class="fade-in">
-            <span class="label-text">1. 覚えたい文章を入力</span>
+        <!-- Step 1 -->
+        <div id="step1" class="fade-in space-y-3">
+            <label class="text-sm font-semibold text-gray-600 block">1. 暗記する文を入力</label>
             <div class="scroll-container">
-                <textarea id="originalText" class="input-box" placeholder="ここに文章を入力..."></textarea>
+                <textarea id="originalInput" placeholder="ここに文章を入力..."></textarea>
             </div>
-            <button onclick="goToStep2()" class="btn-ios w-full mt-6 py-4 rounded-2xl font-bold text-lg">完了</button>
+            <button onclick="toStep2()" class="btn-primary w-full py-3 rounded-xl font-bold">完了</button>
         </div>
 
-        <!-- Step 2: Restore from Memory -->
-        <div id="step2" class="step-hidden fade-in">
-            <span class="label-text">2. 記憶を頼りに復元</span>
+        <!-- Step 2 -->
+        <div id="step2" class="step-hidden fade-in space-y-3">
+            <label class="text-sm font-semibold text-gray-600 block">2. 文を復元</label>
             <div class="scroll-container">
-                <textarea id="recallText" class="input-box" placeholder="さっきの文章を思い出して入力..."></textarea>
+                <textarea id="recallInput" placeholder="思い出して入力..."></textarea>
             </div>
-            <button onclick="goToStep3()" class="btn-ios w-full mt-6 py-4 rounded-2xl font-bold text-lg">完了</button>
+            <button onclick="toStep3()" class="btn-primary w-full py-3 rounded-xl font-bold">完了</button>
         </div>
 
-        <!-- Step 3: Comparison Result -->
+        <!-- Step 3 -->
         <div id="step3" class="step-hidden fade-in space-y-4">
             <div>
-                <span class="label-text text-blue-600">正解（元の文）</span>
-                <div class="scroll-container">
-                    <div id="displayOriginal" class="display-area"></div>
-                </div>
-            </div>
-            
-            <div>
-                <span class="label-text text-gray-500">あなたの回答</span>
-                <div class="scroll-container">
-                    <div id="displayRecall" class="display-area"></div>
-                </div>
+                <label class="text-xs font-bold text-blue-600 block mb-1">正解</label>
+                <div class="scroll-container"><div id="ansRef" class="display-area text-gray-600"></div></div>
             </div>
 
-            <button onclick="resetApp()" class="w-full pt-4 pb-2 text-blue-500 font-semibold hover:underline">最初からやり直す</button>
+            <div>
+                <div class="flex justify-between items-center mb-1">
+                    <label class="text-xs font-bold text-gray-500">あなたの回答</label>
+                    <button id="modeBtn" onclick="toggleMode()" class="btn-secondary">原文のまま表示</button>
+                </div>
+                <div class="scroll-container"><div id="ansRecall" class="display-area"></div></div>
+            </div>
+
+            <div class="flex justify-center pt-2">
+                <button onclick="resetApp()" class="text-blue-500 text-sm font-medium">最初からやり直す</button>
+            </div>
         </div>
     </div>
 
     <script>
-        let originalContent = "";
+        let originalText = "";
+        let recallText = "";
+        let isDiffMode = true;
 
-        function goToStep2() {
-            const originalField = document.getElementById('originalText');
-            if (!originalField.value.trim()) {
-                showModal("文章を入力してください。");
-                return;
-            }
-            originalContent = originalField.value;
-            
+        function toStep2() {
+            originalText = document.getElementById('originalInput').value.trim();
+            if(!originalText) return;
             document.getElementById('step1').classList.add('step-hidden');
-            const step2 = document.getElementById('step2');
-            step2.classList.remove('step-hidden');
-            document.getElementById('recallText').focus();
+            document.getElementById('step2').classList.remove('step-hidden');
+            document.getElementById('recallInput').focus();
         }
 
-        function goToStep3() {
-            const recallContent = document.getElementById('recallText').value;
-            
-            document.getElementById('displayOriginal').textContent = originalContent;
-            document.getElementById('displayRecall').textContent = recallContent || "(未入力)";
-
+        function toStep3() {
+            recallText = document.getElementById('recallInput').value;
+            document.getElementById('ansRef').textContent = originalText;
+            renderComparison();
             document.getElementById('step2').classList.add('step-hidden');
             document.getElementById('step3').classList.remove('step-hidden');
         }
 
-        function resetApp() {
-            originalContent = "";
-            document.getElementById('originalText').value = "";
-            document.getElementById('recallText').value = "";
+        function toggleMode() {
+            isDiffMode = !isDiffMode;
+            const btn = document.getElementById('modeBtn');
+            btn.textContent = isDiffMode ? "原文のまま表示" : "比較モードに切替";
+            renderComparison();
+        }
+
+        function renderComparison() {
+            const container = document.getElementById('ansRecall');
+            if (!isDiffMode) {
+                container.textContent = recallText || "(未入力)";
+                container.style.color = "inherit";
+                return;
+            }
+            container.innerHTML = "";
+            const diff = computeDiff(originalText, recallText);
+            diff.forEach(part => {
+                const span = document.createElement('span');
+                span.textContent = part.value;
+                if (part.type === 'match') span.className = 'match';
+                else if (part.type === 'mismatch') span.className = 'mismatch';
+                else if (part.type === 'missing') span.className = 'missing';
+                container.appendChild(span);
+            });
+        }
+
+        // シンプルな最長共通部分列アルゴリズムを用いた差分抽出
+        function computeDiff(original, recall) {
+            const s1 = Array.from(original);
+            const s2 = Array.from(recall);
+            const n = s1.length;
+            const m = s2.length;
+            const dp = Array.from({ length: n + 1 }, () => Array(m + 1).fill(0));
+
+            for (let i = 1; i <= n; i++) {
+                for (let j = 1; j <= m; j++) {
+                    if (s1[i - 1] === s2[j - 1]) dp[i][j] = dp[i - 1][j - 1] + 1;
+                    else dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+                }
+            }
+
+            const result = [];
+            let i = n, j = m;
+            while (i > 0 || j > 0) {
+                if (i > 0 && j > 0 && s1[i - 1] === s2[j - 1]) {
+                    result.unshift({ type: 'match', value: s1[i - 1] });
+                    i--; j--;
+                } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+                    result.unshift({ type: 'mismatch', value: s2[j - 1] });
+                    j--;
+                } else if (i > 0 && (j === 0 || dp[i][j - 1] < dp[i - 1][j])) {
+                    result.unshift({ type: 'missing', value: s1[i - 1] });
+                    i--;
+                }
+            }
             
+            // 連続する同タイプの要素を結合
+            const merged = [];
+            if(result.length === 0) return [{type: 'none', value: '(未入力)'}];
+            
+            result.forEach(item => {
+                if(merged.length > 0 && merged[merged.length-1].type === item.type) {
+                    merged[merged.length-1].value += item.value;
+                } else {
+                    merged.push(item);
+                }
+            });
+            return merged;
+        }
+
+        function resetApp() {
+            document.getElementById('originalInput').value = "";
+            document.getElementById('recallInput').value = "";
             document.getElementById('step3').classList.add('step-hidden');
             document.getElementById('step1').classList.remove('step-hidden');
-        }
-
-        function showModal(msg) {
-            // シンプルなエラー通知（alertの代わり）
-            const toast = document.createElement('div');
-            toast.className = 'fixed top-10 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-md px-6 py-3 rounded-full shadow-xl border border-white/50 text-gray-800 z-50 transition-all';
-            toast.innerText = msg;
-            document.body.appendChild(toast);
-            setTimeout(() => {
-                toast.style.opacity = '0';
-                setTimeout(() => toast.remove(), 500);
-            }, 2000);
+            isDiffMode = true;
+            document.getElementById('modeBtn').textContent = "原文のまま表示";
         }
     </script>
-
 </body>
 </html>
 
