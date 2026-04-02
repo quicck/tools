@@ -19,24 +19,39 @@
 
         .glass {
             background: rgba(255, 255, 255, 0.6);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
             border: 1px solid rgba(255, 255, 255, 0.3);
             border-radius: 24px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
         }
 
+        /* 外側の枠：余白（padding）を追加して角に文字が被らないように修正 */
+        .input-wrapper {
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            overflow: hidden;
+            position: relative;
+            padding: 8px; /* 枠の内側に余白を設ける */
+        }
+
+        /* スクロールを管理するコンテナ */
         .scroll-container {
             max-height: 180px;
             overflow-y: auto;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.4);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            scrollbar-width: none;
+            -ms-overflow-style: none;
         }
 
+        .scroll-container::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* テキストエリア：パディングを調整 */
         textarea {
             width: 100%;
-            min-height: 180px;
+            min-height: 164px;
             padding: 12px;
             background: transparent;
             border: none;
@@ -44,10 +59,12 @@
             font-size: 1rem;
             line-height: 1.5;
             resize: none;
+            display: block;
+            overflow: hidden;
         }
 
         .display-area {
-            padding: 10px;
+            padding: 12px;
             font-size: 0.85rem;
             line-height: 1.6;
             word-break: break-all;
@@ -55,9 +72,9 @@
         }
 
         /* Diff Colors */
-        .match { color: #28a745; font-weight: 500; } /* 一致：緑 */
-        .mismatch { color: #dc3545; font-weight: 500; text-decoration: underline; } /* 誤字：赤 */
-        .missing { color: #adb5bd; background: #e9ecef; border-radius: 2px; margin: 0 1px; } /* 抜け：灰色 */
+        .match { color: #28a745; font-weight: 500; } 
+        .mismatch { color: #dc3545; font-weight: 500; text-decoration: underline; } 
+        .missing { color: #adb5bd; background: rgba(0, 0, 0, 0.05); border-radius: 2px; margin: 0 1px; } 
 
         .btn-primary {
             background: #007AFF;
@@ -88,8 +105,10 @@
         <!-- Step 1 -->
         <div id="step1" class="fade-in space-y-3">
             <label class="text-sm font-semibold text-gray-600 block">1. 暗記する文を入力</label>
-            <div class="scroll-container">
-                <textarea id="originalInput" placeholder="ここに文章を入力..."></textarea>
+            <div class="input-wrapper">
+                <div class="scroll-container">
+                    <textarea id="originalInput" placeholder="ここに文章を入力..." oninput="autoGrow(this)"></textarea>
+                </div>
             </div>
             <button onclick="toStep2()" class="btn-primary w-full py-3 rounded-xl font-bold">完了</button>
         </div>
@@ -97,8 +116,10 @@
         <!-- Step 2 -->
         <div id="step2" class="step-hidden fade-in space-y-3">
             <label class="text-sm font-semibold text-gray-600 block">2. 文を復元</label>
-            <div class="scroll-container">
-                <textarea id="recallInput" placeholder="思い出して入力..."></textarea>
+            <div class="input-wrapper">
+                <div class="scroll-container">
+                    <textarea id="recallInput" placeholder="思い出して入力..." oninput="autoGrow(this)"></textarea>
+                </div>
             </div>
             <button onclick="toStep3()" class="btn-primary w-full py-3 rounded-xl font-bold">完了</button>
         </div>
@@ -107,7 +128,9 @@
         <div id="step3" class="step-hidden fade-in space-y-4">
             <div>
                 <label class="text-xs font-bold text-blue-600 block mb-1">正解</label>
-                <div class="scroll-container"><div id="ansRef" class="display-area text-gray-600"></div></div>
+                <div class="input-wrapper">
+                    <div class="scroll-container"><div id="ansRef" class="display-area text-gray-600"></div></div>
+                </div>
             </div>
 
             <div>
@@ -115,7 +138,9 @@
                     <label class="text-xs font-bold text-gray-500">あなたの回答</label>
                     <button id="modeBtn" onclick="toggleMode()" class="btn-secondary">原文のまま表示</button>
                 </div>
-                <div class="scroll-container"><div id="ansRecall" class="display-area"></div></div>
+                <div class="input-wrapper">
+                    <div class="scroll-container"><div id="ansRecall" class="display-area"></div></div>
+                </div>
             </div>
 
             <div class="flex justify-center pt-2">
@@ -129,12 +154,19 @@
         let recallText = "";
         let isDiffMode = true;
 
+        function autoGrow(el) {
+            el.style.height = 'auto';
+            el.style.height = (el.scrollHeight) + 'px';
+        }
+
         function toStep2() {
             originalText = document.getElementById('originalInput').value.trim();
             if(!originalText) return;
             document.getElementById('step1').classList.add('step-hidden');
             document.getElementById('step2').classList.remove('step-hidden');
-            document.getElementById('recallInput').focus();
+            const recallInput = document.getElementById('recallInput');
+            recallInput.focus();
+            autoGrow(recallInput);
         }
 
         function toStep3() {
@@ -156,7 +188,6 @@
             const container = document.getElementById('ansRecall');
             if (!isDiffMode) {
                 container.textContent = recallText || "(未入力)";
-                container.style.color = "inherit";
                 return;
             }
             container.innerHTML = "";
@@ -171,12 +202,10 @@
             });
         }
 
-        // シンプルな最長共通部分列アルゴリズムを用いた差分抽出
         function computeDiff(original, recall) {
             const s1 = Array.from(original);
             const s2 = Array.from(recall);
-            const n = s1.length;
-            const m = s2.length;
+            const n = s1.length, m = s2.length;
             const dp = Array.from({ length: n + 1 }, () => Array(m + 1).fill(0));
 
             for (let i = 1; i <= n; i++) {
@@ -201,10 +230,8 @@
                 }
             }
             
-            // 連続する同タイプの要素を結合
             const merged = [];
             if(result.length === 0) return [{type: 'none', value: '(未入力)'}];
-            
             result.forEach(item => {
                 if(merged.length > 0 && merged[merged.length-1].type === item.type) {
                     merged[merged.length-1].value += item.value;
@@ -216,8 +243,12 @@
         }
 
         function resetApp() {
-            document.getElementById('originalInput').value = "";
-            document.getElementById('recallInput').value = "";
+            const o = document.getElementById('originalInput');
+            const r = document.getElementById('recallInput');
+            o.value = "";
+            r.value = "";
+            o.style.height = '164px';
+            r.style.height = '164px';
             document.getElementById('step3').classList.add('step-hidden');
             document.getElementById('step1').classList.remove('step-hidden');
             isDiffMode = true;
