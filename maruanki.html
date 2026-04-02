@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>丸暗記練習</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        /* iOS-style Glassmorphism */
+        .glass {
+            background: rgba(255, 255, 255, 0.45);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 32px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Fixed-height Scrollable Areas */
+        .scroll-container {
+            max-height: 250px;
+            overflow-y: auto;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            scrollbar-width: thin;
+            scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
+        }
+
+        .scroll-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .scroll-container::-webkit-scrollbar-thumb {
+            background-color: rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+
+        textarea.input-box {
+            width: 100%;
+            min-height: 200px;
+            padding: 16px;
+            background: transparent;
+            border: none;
+            outline: none;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            color: #1c1c1e;
+            resize: none;
+            display: block;
+        }
+
+        .display-area {
+            padding: 16px;
+            font-size: 1.05rem;
+            line-height: 1.6;
+            color: #1c1c1e;
+            word-break: break-all;
+            white-space: pre-wrap;
+        }
+
+        .btn-ios {
+            background: #007AFF;
+            color: white;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 15px rgba(0, 122, 255, 0.3);
+        }
+
+        .btn-ios:active {
+            transform: scale(0.96);
+            background: #0062cc;
+        }
+
+        .step-hidden {
+            display: none;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .label-text {
+            color: #3a3a3c;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            display: block;
+            padding-left: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="glass w-full max-w-md p-6 space-y-6">
+        <h1 class="text-2xl font-bold text-[#1c1c1e] text-center py-2">丸暗記練習</h1>
+
+        <!-- Step 1: Input Original -->
+        <div id="step1" class="fade-in">
+            <span class="label-text">1. 覚えたい文章を入力</span>
+            <div class="scroll-container">
+                <textarea id="originalText" class="input-box" placeholder="ここに文章を入力..."></textarea>
+            </div>
+            <button onclick="goToStep2()" class="btn-ios w-full mt-6 py-4 rounded-2xl font-bold text-lg">完了</button>
+        </div>
+
+        <!-- Step 2: Restore from Memory -->
+        <div id="step2" class="step-hidden fade-in">
+            <span class="label-text">2. 記憶を頼りに復元</span>
+            <div class="scroll-container">
+                <textarea id="recallText" class="input-box" placeholder="さっきの文章を思い出して入力..."></textarea>
+            </div>
+            <button onclick="goToStep3()" class="btn-ios w-full mt-6 py-4 rounded-2xl font-bold text-lg">完了</button>
+        </div>
+
+        <!-- Step 3: Comparison Result -->
+        <div id="step3" class="step-hidden fade-in space-y-4">
+            <div>
+                <span class="label-text text-blue-600">正解（元の文）</span>
+                <div class="scroll-container">
+                    <div id="displayOriginal" class="display-area"></div>
+                </div>
+            </div>
+            
+            <div>
+                <span class="label-text text-gray-500">あなたの回答</span>
+                <div class="scroll-container">
+                    <div id="displayRecall" class="display-area"></div>
+                </div>
+            </div>
+
+            <button onclick="resetApp()" class="w-full pt-4 pb-2 text-blue-500 font-semibold hover:underline">最初からやり直す</button>
+        </div>
+    </div>
+
+    <script>
+        let originalContent = "";
+
+        function goToStep2() {
+            const originalField = document.getElementById('originalText');
+            if (!originalField.value.trim()) {
+                showModal("文章を入力してください。");
+                return;
+            }
+            originalContent = originalField.value;
+            
+            document.getElementById('step1').classList.add('step-hidden');
+            const step2 = document.getElementById('step2');
+            step2.classList.remove('step-hidden');
+            document.getElementById('recallText').focus();
+        }
+
+        function goToStep3() {
+            const recallContent = document.getElementById('recallText').value;
+            
+            document.getElementById('displayOriginal').textContent = originalContent;
+            document.getElementById('displayRecall').textContent = recallContent || "(未入力)";
+
+            document.getElementById('step2').classList.add('step-hidden');
+            document.getElementById('step3').classList.remove('step-hidden');
+        }
+
+        function resetApp() {
+            originalContent = "";
+            document.getElementById('originalText').value = "";
+            document.getElementById('recallText').value = "";
+            
+            document.getElementById('step3').classList.add('step-hidden');
+            document.getElementById('step1').classList.remove('step-hidden');
+        }
+
+        function showModal(msg) {
+            // シンプルなエラー通知（alertの代わり）
+            const toast = document.createElement('div');
+            toast.className = 'fixed top-10 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-md px-6 py-3 rounded-full shadow-xl border border-white/50 text-gray-800 z-50 transition-all';
+            toast.innerText = msg;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 500);
+            }, 2000);
+        }
+    </script>
+
+</body>
+</html>
+
