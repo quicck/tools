@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini 表</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Noto+Sans+JP:wght@300;400;700&display=swap');
+
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+            background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            color: #1d1d1f;
+            padding: 20px;
+        }
+
+        /* Glassmorphism Effect */
+        .glass {
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+        }
+
+        .glass-input {
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .glass-input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.15);
+        }
+
+        /* Table Styling */
+        .table-container {
+            overflow-x: auto;
+            border-radius: 12px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        th {
+            background: rgba(0, 0, 0, 0.05);
+            padding: 14px 16px;
+            font-weight: 600;
+            text-align: left;
+            font-size: 0.9rem;
+            color: #3a3a3c;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        td {
+            padding: 14px 16px;
+            font-size: 0.95rem;
+            border-bottom: 0.5px solid rgba(0, 0, 0, 0.05);
+            color: #1d1d1f;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .placeholder-text {
+            color: rgba(0, 0, 0, 0.4);
+            text-align: center;
+            padding: 40px;
+        }
+
+        h1 {
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: #1d1d1f;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-start">
+
+    <div class="w-full max-w-4xl">
+        <!-- Header -->
+        <header class="mb-8 mt-4 text-center">
+            <h1 class="text-3xl md:text-4xl">Gemini 表</h1>
+            <p class="text-sm opacity-60 mt-2">Paste markdown table text to visualize</p>
+        </header>
+
+        <!-- Input Section -->
+        <div class="glass p-6 mb-8">
+            <label for="markdown-input" class="block text-sm font-semibold mb-2 ml-1 text-gray-700">Markdown Input</label>
+            <textarea 
+                id="markdown-input" 
+                class="glass-input w-full p-4 text-sm h-32 resize-none" 
+                placeholder="| 項目 | 値 |\n| :--- | :--- |\n| サンプル | データ |"
+            ></textarea>
+        </div>
+
+        <!-- Output Section -->
+        <div id="preview-container" class="glass p-1 hidden">
+            <div class="table-container" id="table-output">
+                <!-- Table will be injected here -->
+            </div>
+        </div>
+
+        <div id="empty-state" class="glass p-12 text-center opacity-60">
+            <p>ここに表のプレビューが表示されます</p>
+        </div>
+    </div>
+
+    <script>
+        const input = document.getElementById('markdown-input');
+        const output = document.getElementById('table-output');
+        const previewContainer = document.getElementById('preview-container');
+        const emptyState = document.getElementById('empty-state');
+
+        input.addEventListener('input', () => {
+            const text = input.value.trim();
+            
+            if (!text) {
+                previewContainer.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            try {
+                const html = parseMarkdownTable(text);
+                if (html) {
+                    output.innerHTML = html;
+                    previewContainer.classList.remove('hidden');
+                    emptyState.classList.add('hidden');
+                } else {
+                    previewContainer.classList.add('hidden');
+                    emptyState.classList.remove('hidden');
+                }
+            } catch (e) {
+                console.error("Parsing error", e);
+            }
+        });
+
+        function parseMarkdownTable(markdown) {
+            const lines = markdown.split('\n').map(l => l.trim()).filter(l => l.startsWith('|'));
+            
+            if (lines.length < 2) return null;
+
+            // Extract headers
+            const headers = lines[0]
+                .split('|')
+                .filter((_, i, arr) => i !== 0 && i !== arr.length - 1)
+                .map(h => h.trim());
+
+            // Check if second line is the separator
+            const isSeparator = lines[1].includes('-') && lines[1].includes('|');
+            if (!isSeparator) return null;
+
+            // Extract data rows
+            const rows = lines.slice(2).map(line => {
+                return line
+                    .split('|')
+                    .filter((_, i, arr) => i !== 0 && i !== arr.length - 1)
+                    .map(d => d.trim());
+            });
+
+            // Build HTML
+            let html = '<table><thead><tr>';
+            headers.forEach(h => {
+                html += `<th>${h}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+
+            rows.forEach(row => {
+                html += '<tr>';
+                row.forEach(cell => {
+                    html += `<td>${cell}</td>`;
+                });
+                // Fill missing cells if row is short
+                for (let i = row.length; i < headers.length; i++) {
+                    html += '<td></td>';
+                }
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            return html;
+        }
+
+        // Handle touch events for better mobile interaction
+        document.addEventListener('touchstart', function() {}, {passive: true});
+    </script>
+</body>
+</html>
+
