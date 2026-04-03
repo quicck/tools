@@ -214,7 +214,6 @@
             if (currentHash !== lastFetchedDataHash) {
                 renderRanking(songs);
                 lastFetchedDataHash = currentHash;
-                console.log("Data updated at " + new Date().toLocaleTimeString());
             }
 
             status.textContent = `自動更新中... (最終同期: ${new Date().toLocaleTimeString()})`;
@@ -256,7 +255,7 @@
 
     function formatViewCount(rawText) {
         if (!rawText) return "";
-        // 「de vues」や「views」などを削除し、数字（カンマやピリオド含む）を抽出
+        // 数字、K(千)、M(百万)、カンマ、ピリオドを抽出して「回再生」を付与
         const count = rawText.replace(/[^\d,.Mk]/g, '').trim();
         return count ? `${count}回再生` : "";
     }
@@ -274,11 +273,17 @@
                     playlistItems.forEach((item, index) => {
                         if (item.playlistVideoRenderer) {
                             const v = item.playlistVideoRenderer;
+                            
+                            // アーティスト名を取得し、「 et 」を「 and 」に置換
+                            let artistName = v.shortBylineText?.runs?.[0]?.text || "Unknown Artist";
+                            artistName = artistName.replace(/\s+et\s+/g, ' and ');
+
                             const rawViews = v.videoInfo?.runs?.[0]?.text || "";
+                            
                             songs.push({
                                 rank: index + 1,
                                 title: v.title?.runs?.[0]?.text || "Unknown Title",
-                                artist: v.shortBylineText?.runs?.[0]?.text || "Unknown Artist",
+                                artist: artistName,
                                 views: formatViewCount(rawViews)
                             });
                         }
