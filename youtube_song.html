@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Japan Music Top 100 - Realtime Glassmorphism</title>
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.4);
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --text-main: #1d1d1f;
+            --text-sub: #6e6e73;
+            --accent: #ff2d55;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            overflow-x: hidden;
+            -webkit-text-size-adjust: 100%;
+        }
+
+        body {
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .bg-blob {
+            position: fixed;
+            z-index: -1;
+            filter: blur(80px);
+            border-radius: 50%;
+            opacity: 0.6;
+            pointer-events: none;
+        }
+        .blob1 { width: 300px; height: 300px; background: #ff9a9e; top: -100px; right: -50px; }
+        .blob2 { width: 250px; height: 250px; background: #a18cd1; bottom: -50px; left: -50px; }
+
+        header {
+            width: 100%;
+            max-width: 600px;
+            padding: 30px 20px 15px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            background: rgba(255, 255, 255, 0.5);
+            border-bottom: 1px solid var(--glass-border);
+            box-sizing: border-box;
+        }
+
+        h1 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin: 0;
+            letter-spacing: -0.02em;
+        }
+
+        .status-container {
+            margin-top: 8px;
+            font-size: 0.75rem;
+            color: var(--text-sub);
+            font-weight: 500;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            padding: 15px;
+            box-sizing: border-box;
+        }
+
+        .ranking-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+        }
+
+        .ranking-item {
+            display: flex;
+            align-items: flex-start;
+            background: var(--glass-bg);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid var(--glass-border);
+            border-radius: 22px;
+            padding: 18px;
+            box-shadow: 0 4px 24px 0 rgba(31, 38, 135, 0.05);
+            box-sizing: border-box;
+            width: 100%;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .rank-number {
+            font-size: 1.3rem;
+            font-weight: 800;
+            min-width: 40px;
+            color: var(--accent);
+            padding-top: 2px;
+        }
+
+        .info {
+            flex: 1;
+            margin-left: 8px;
+            min-width: 0;
+        }
+
+        .song-title {
+            font-weight: 700;
+            font-size: 1.05rem;
+            line-height: 1.4;
+            margin-bottom: 4px;
+            white-space: normal;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .artist {
+            font-size: 0.9rem;
+            color: var(--text-sub);
+            line-height: 1.4;
+            white-space: normal;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .views {
+            font-size: 0.7rem;
+            color: var(--text-sub);
+            margin-top: 6px;
+            opacity: 0.7;
+        }
+
+        .loader {
+            display: flex;
+            justify-content: center;
+            padding: 50px;
+        }
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid rgba(0,0,0,0.1);
+            border-top: 2px solid var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .error-msg {
+            background: rgba(255, 0, 0, 0.05);
+            color: #d32f2f;
+            padding: 20px;
+            border-radius: 18px;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="bg-blob blob1"></div>
+<div class="bg-blob blob2"></div>
+
+<header>
+    <h1>Japan Top 100</h1>
+    <div id="status" class="status-container">YouTubeからデータを取得中...</div>
+</header>
+
+<main class="container">
+    <div id="rankingContainer" class="ranking-list">
+        <div class="loader"><div class="spinner"></div></div>
+    </div>
+</main>
+
+<script>
+    const TARGET_URL = "https://m.youtube.com/playlist?list=PL4fGSI1pDJn4-UIb6RKHdxam-oAUULIGB";
+    let lastFetchedDataHash = "";
+    let isInitialLoad = true;
+
+    async function fetchUpdate() {
+        const status = document.getElementById('status');
+        const container = document.getElementById('rankingContainer');
+
+        try {
+            const html = await fetchSource(TARGET_URL);
+            if (!html) throw new Error("Source could not be retrieved");
+
+            const songs = parseYouTubePlaylist(html);
+            
+            if (songs.length === 0) {
+                if (isInitialLoad) {
+                    status.textContent = "データを解析できませんでした。";
+                    container.innerHTML = '<div class="error-msg">楽曲データが見つかりませんでした。</div>';
+                }
+                return;
+            }
+
+            const currentHash = JSON.stringify(songs);
+            if (currentHash !== lastFetchedDataHash) {
+                renderRanking(songs);
+                lastFetchedDataHash = currentHash;
+                console.log("Data updated at " + new Date().toLocaleTimeString());
+            }
+
+            status.textContent = `自動更新中... (最終同期: ${new Date().toLocaleTimeString()})`;
+            isInitialLoad = false;
+
+        } catch (e) {
+            console.error("Update failed:", e);
+            if (isInitialLoad) {
+                status.textContent = "読み込みエラー";
+                container.innerHTML = '<div class="error-msg">取得に失敗しました。</div>';
+            }
+        }
+    }
+
+    async function fetchSource(url) {
+        const proxies = [
+            u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
+            u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`
+        ];
+
+        for (let i = 0; i < proxies.length; i++) {
+            try {
+                const cacheBuster = `&_t=${Date.now()}`;
+                const res = await fetch(proxies[i](url) + cacheBuster);
+                if (!res.ok) continue;
+                
+                if (i === 0) {
+                    const json = await res.json();
+                    return json.contents;
+                } else {
+                    return await res.text();
+                }
+            } catch (e) {
+                console.warn(`Proxy ${i} failed`);
+            }
+        }
+        return null;
+    }
+
+    function formatViewCount(rawText) {
+        if (!rawText) return "";
+        // 「de vues」や「views」などを削除し、数字（カンマやピリオド含む）を抽出
+        const count = rawText.replace(/[^\d,.Mk]/g, '').trim();
+        return count ? `${count}回再生` : "";
+    }
+
+    function parseYouTubePlaylist(html) {
+        const songs = [];
+        try {
+            const jsonMatch = html.match(/var ytInitialData = ({.*?});/s);
+            if (jsonMatch) {
+                const data = JSON.parse(jsonMatch[1]);
+                const sectionList = data.contents?.twoColumnBrowseResultsRenderer?.tabs[0]?.tabRenderer?.content?.sectionListRenderer?.contents[0];
+                const playlistItems = sectionList?.itemSectionRenderer?.contents[0]?.playlistVideoListRenderer?.contents;
+                
+                if (playlistItems) {
+                    playlistItems.forEach((item, index) => {
+                        if (item.playlistVideoRenderer) {
+                            const v = item.playlistVideoRenderer;
+                            const rawViews = v.videoInfo?.runs?.[0]?.text || "";
+                            songs.push({
+                                rank: index + 1,
+                                title: v.title?.runs?.[0]?.text || "Unknown Title",
+                                artist: v.shortBylineText?.runs?.[0]?.text || "Unknown Artist",
+                                views: formatViewCount(rawViews)
+                            });
+                        }
+                    });
+                }
+            }
+        } catch (e) {
+            console.error("JSON parse failed, checking fallback", e);
+            const titleMatches = html.matchAll(/"title":\{"runs":\[\{"text":"(.*?)"\}\]/g);
+            let i = 1;
+            for (const match of titleMatches) {
+                if (i > 100) break;
+                songs.push({ rank: i++, title: match[1], artist: "YouTube Music Ranking", views: "" });
+            }
+        }
+        return songs;
+    }
+
+    function renderRanking(songs) {
+        const container = document.getElementById('rankingContainer');
+        container.innerHTML = '';
+
+        songs.slice(0, 100).forEach(song => {
+            const item = document.createElement('div');
+            item.className = 'ranking-item';
+            item.innerHTML = `
+                <div class="rank-number">${song.rank}</div>
+                <div class="info">
+                    <div class="song-title">${song.title}</div>
+                    <div class="artist">${song.artist}</div>
+                    ${song.views ? `<div class="views">${song.views}</div>` : ''}
+                </div>
+            `;
+            container.appendChild(item);
+        });
+    }
+
+    window.onload = () => {
+        fetchUpdate();
+        setInterval(fetchUpdate, 30000);
+    };
+</script>
+
+</body>
+</html>
+
