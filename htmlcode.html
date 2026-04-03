@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML Source Viewer</title>
+    <style>
+        /* 基本スタイル：白地に黒文字、明朝体 */
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #000000;
+            --accent-color: #000000;
+            --border-color: #000000;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: "Sawarabi Mincho", "Yu Mincho", "MS Mincho", serif;
+            margin: 0;
+            padding: 40px 20px;
+            line-height: 1.6;
+            display: flex;
+            justify-content: center;
+        }
+
+        .wrapper {
+            width: 100%;
+            max-width: 800px;
+        }
+
+        header {
+            margin-bottom: 40px;
+            text-align: center;
+        }
+
+        h1 {
+            font-weight: normal;
+            font-size: 1.5rem;
+            letter-spacing: 0.1em;
+            margin: 0;
+        }
+
+        /* 入力エリア */
+        .search-form {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input[type="url"] {
+            flex: 1;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            padding: 12px 15px;
+            font-family: inherit;
+            font-size: 1rem;
+            outline: none;
+        }
+
+        button {
+            background-color: var(--accent-color);
+            color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            padding: 12px 30px;
+            font-family: inherit;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.7;
+        }
+
+        button:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        /* 状態表示 */
+        #status {
+            font-size: 0.85rem;
+            margin-bottom: 20px;
+            min-height: 1.5em;
+        }
+
+        /* ソース表示エリア */
+        .result-area {
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            position: relative;
+            display: none;
+        }
+
+        pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: "SF Mono", "Courier New", monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 0.7rem;
+            padding: 5px 10px;
+            background: #000;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+
+        /* ローディングアニメーション */
+        .dots:after {
+            content: '.';
+            animation: dots 1.5s steps(5, end) infinite;
+        }
+        @keyframes dots {
+            0%, 20% { content: ''; }
+            40% { content: '.'; }
+            60% { content: '..'; }
+            80% { content: '...'; }
+        }
+
+        .error {
+            color: #ff0000;
+        }
+    </style>
+</head>
+<body>
+
+<div class="wrapper">
+    <header>
+        <h1>HTML取得</h1>
+    </header>
+
+    <div class="search-form">
+        <input type="url" id="urlInput" placeholder="https://example.com" spellcheck="false">
+        <button id="fetchBtn" onclick="fetchSource()">取得</button>
+    </div>
+
+    <div id="status"></div>
+
+    <div id="resultArea" class="result-area">
+        <button class="copy-btn" onclick="copyToClipboard()">コピー</button>
+        <pre id="output"></pre>
+    </div>
+</div>
+
+<script>
+    let currentHtml = "";
+
+    async function fetchSource() {
+        const input = document.getElementById('urlInput');
+        const btn = document.getElementById('fetchBtn');
+        const status = document.getElementById('status');
+        const resultArea = document.getElementById('resultArea');
+        const output = document.getElementById('output');
+
+        let url = input.value.trim();
+        if (!url) {
+            status.innerHTML = '<span class="error">URLを入力してください</span>';
+            return;
+        }
+        if (!url.startsWith('http')) url = 'https://' + url;
+        input.value = url;
+
+        // UI初期化
+        btn.disabled = true;
+        status.innerHTML = '接続中<span class="dots"></span>';
+        resultArea.style.display = 'none';
+        output.textContent = '';
+
+        // プロキシを試行する仕組み
+        const proxies = [
+            u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
+            u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`
+        ];
+
+        let success = false;
+        for (let i = 0; i < proxies.length; i++) {
+            try {
+                const res = await fetch(proxies[i](url));
+                if (!res.ok) throw new Error();
+                
+                if (i === 0) {
+                    const json = await res.json();
+                    currentHtml = json.contents;
+                } else {
+                    currentHtml = await res.text();
+                }
+
+                if (currentHtml) {
+                    success = true;
+                    break;
+                }
+            } catch (e) {
+                console.log(`Proxy ${i} failed`);
+            }
+        }
+
+        if (success) {
+            output.textContent = currentHtml;
+            resultArea.style.display = 'block';
+            status.innerHTML = '取得完了';
+        } else {
+            status.innerHTML = '<span class="error">エラー: ソースを取得できませんでした。</span>';
+        }
+
+        btn.disabled = false;
+    }
+
+    function copyToClipboard() {
+        if (!currentHtml) return;
+        const textarea = document.createElement('textarea');
+        textarea.value = currentHtml;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        
+        const status = document.getElementById('status');
+        const originalText = status.innerHTML;
+        status.innerHTML = 'コピーしました';
+        setTimeout(() => { status.innerHTML = originalText; }, 2000);
+    }
+
+    document.getElementById('urlInput').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') fetchSource();
+    });
+</script>
+
+</body>
+</html>
+
+
