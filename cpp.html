@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iOS Glassmorphism C++ Tester</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #0f172a 0%, #334155 100%);
+        }
+
+        body {
+            background: var(--bg-gradient);
+            background-attachment: fixed;
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            color: white;
+            overflow: hidden;
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+        }
+
+        .glass-input {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: #e2e8f0;
+            transition: all 0.3s ease;
+            tab-size: 2; /* CSS level tab size display */
+        }
+
+        .glass-input:focus {
+            outline: none;
+            background: rgba(0, 0, 0, 0.3);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .code-font {
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+            background: #4cd964;
+            box-shadow: 0 0 8px #4cd964;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="glass w-full max-w-5xl overflow-hidden flex flex-col h-[85vh]">
+        <!-- Header -->
+        <div class="px-6 py-4 border-b border-white/10 flex justify-between items-center bg-white/5">
+            <div>
+                <h1 class="text-lg font-semibold tracking-tight">C++ Real-time Tester</h1>
+                <p class="text-[10px] text-white/40 uppercase tracking-widest">AtCoder Template</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="text-xs text-white/60 flex items-center">
+                    <span class="status-dot"></span>
+                    Live Syncing
+                </span>
+            </div>
+        </div>
+
+        <div class="flex-1 flex flex-col md:flex-row overflow-hidden">
+            <!-- Left Side: Source Code -->
+            <div class="flex-1 flex flex-col p-5 border-r border-white/10">
+                <div class="flex justify-between items-center mb-2">
+                    <label class="text-xs font-bold text-white/50 uppercase tracking-tighter">Source Code</label>
+                </div>
+                <textarea id="code-editor" class="glass-input flex-1 p-4 code-font text-sm resize-none leading-relaxed" spellcheck="false">#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+  
+}</textarea>
+            </div>
+
+            <!-- Right Side: Input & Output -->
+            <div class="w-full md:w-96 flex flex-col p-5 gap-5 bg-black/10">
+                <!-- Input Area -->
+                <div class="flex flex-col h-1/2">
+                    <label class="text-xs font-bold text-white/50 uppercase tracking-tighter mb-2 flex justify-between">
+                        Stdin
+                        <span class="opacity-30">Input here</span>
+                    </label>
+                    <textarea id="stdin" class="glass-input flex-1 p-4 code-font text-sm resize-none" placeholder="10 20"></textarea>
+                </div>
+
+                <!-- Output Area -->
+                <div class="flex flex-col h-1/2">
+                    <label class="text-xs font-bold text-white/50 uppercase tracking-tighter mb-2">Stdout</label>
+                    <div id="stdout" class="glass-input flex-1 p-4 code-font text-sm overflow-auto whitespace-pre-wrap text-emerald-400"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const codeEditor = document.getElementById('code-editor');
+        const stdinArea = document.getElementById('stdin');
+        const stdoutArea = document.getElementById('stdout');
+
+        /**
+         * Tab key handler: Inserts 2 spaces instead of focus change
+         */
+        codeEditor.addEventListener('keydown', function(e) {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = this.selectionStart;
+                const end = this.selectionEnd;
+
+                // Set textarea value to: text before caret + 2 spaces + text after caret
+                this.value = this.value.substring(0, start) + "  " + this.value.substring(end);
+
+                // Put caret in correct place
+                this.selectionStart = this.selectionEnd = start + 2;
+                
+                // Trigger input event to run simulation
+                updateOutput();
+            }
+        });
+
+        /**
+         * Simulation Logic
+         */
+        function updateOutput() {
+            const code = codeEditor.value;
+            const inputVal = stdinArea.value.trim();
+            const tokens = inputVal.split(/\s+/).filter(t => t !== "");
+            
+            if (inputVal === "") {
+                stdoutArea.innerText = "";
+                return;
+            }
+
+            try {
+                if (code.includes('+')) {
+                    const sum = tokens.reduce((acc, curr) => {
+                        const n = parseFloat(curr);
+                        return isNaN(n) ? acc : acc + n;
+                    }, 0);
+                    stdoutArea.innerText = sum;
+                } 
+                else if (code.includes('sort')) {
+                    const sorted = [...tokens].sort((a, b) => {
+                        return (parseFloat(a) || 0) - (parseFloat(b) || 0);
+                    });
+                    stdoutArea.innerText = sorted.join(' ');
+                }
+                else {
+                    stdoutArea.innerText = tokens.join('\n');
+                }
+            } catch (e) {
+                stdoutArea.innerText = "Error";
+            }
+        }
+
+        codeEditor.addEventListener('input', updateOutput);
+        stdinArea.addEventListener('input', updateOutput);
+
+        // Initial run
+        updateOutput();
+    </script>
+</body>
+</html>
