@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>QR Scanner</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --ios-blue: #007AFF;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #000;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            color: white;
+        }
+
+        #video-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Overlay UI */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 40px 20px;
+            pointer-events: none;
+        }
+
+        .header {
+            text-align: center;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            padding: 15px;
+            border-radius: 20px;
+            width: fit-content;
+            margin: 0 auto;
+            pointer-events: auto;
+        }
+
+        /* Scanner Frame */
+        .scanner-frame {
+            position: relative;
+            width: 260px;
+            height: 260px;
+            margin: 0 auto;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 40px;
+            overflow: hidden;
+        }
+
+        .scanner-line {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background: var(--ios-blue);
+            box-shadow: 0 0 15px var(--ios-blue);
+            top: 0;
+            animation: scan 3s infinite ease-in-out;
+        }
+
+        @keyframes scan {
+            0%, 100% { top: 0%; }
+            50% { top: 100%; }
+        }
+
+        .footer {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            pointer-events: auto;
+        }
+
+        .btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .btn:active {
+            transform: scale(0.9);
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .status-msg {
+            position: fixed;
+            bottom: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            z-index: 10;
+            display: none;
+        }
+
+        canvas {
+            display: none;
+        }
+
+        /* SVG Icons */
+        svg {
+            width: 24px;
+            height: 24px;
+            fill: white;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="video-container">
+        <video id="video" playsinline></video>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <div class="overlay">
+        <div class="header">
+            <span style="font-weight: 500; letter-spacing: 0.5px;">QRコードをスキャン</span>
+        </div>
+
+        <div class="scanner-frame">
+            <div class="scanner-line"></div>
+        </div>
+
+        <div class="footer">
+            <div class="btn" onclick="toggleFlash()">
+                <svg viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l4-8H7z"/></svg>
+            </div>
+            <div class="btn" onclick="location.reload()">
+                <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+            </div>
+        </div>
+    </div>
+
+    <div id="status" class="status-msg"></div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const statusMsg = document.getElementById('status');
+        let isScanning = true;
+
+        // カメラの起動
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }
+                });
+                video.srcObject = stream;
+                video.setAttribute('playsinline', true);
+                video.play();
+                requestAnimationFrame(tick);
+            } catch (err) {
+                console.error("Camera error:", err);
+                showStatus("カメラへのアクセスを許可してください");
+            }
+        }
+
+        function showStatus(msg) {
+            statusMsg.textContent = msg;
+            statusMsg.style.display = 'block';
+            setTimeout(() => {
+                statusMsg.style.display = 'none';
+            }, 3000);
+        }
+
+        function tick() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA && isScanning) {
+                canvas.height = video.videoHeight;
+                canvas.width = video.videoWidth;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: "dontInvert",
+                });
+
+                if (code) {
+                    isScanning = false;
+                    handleQRCode(code.data);
+                }
+            }
+            if (isScanning) {
+                requestAnimationFrame(tick);
+            }
+        }
+
+        function handleQRCode(data) {
+            // iOSのようなハプティクスフィードバック（可能な場合）
+            if (window.navigator.vibrate) {
+                window.navigator.vibrate(200);
+            }
+
+            showStatus("読み込み中...");
+
+            // URLチェック
+            try {
+                const url = new URL(data);
+                // ページ遷移
+                setTimeout(() => {
+                    window.location.href = url.href;
+                }, 500);
+            } catch (e) {
+                // URLでない場合は表示のみ
+                showStatus("テキスト: " + data);
+                setTimeout(() => { isScanning = true; tick(); }, 3000);
+            }
+        }
+
+        function toggleFlash() {
+            const track = video.srcObject.getVideoTracks()[0];
+            const capabilities = track.getCapabilities();
+            if (capabilities.torch) {
+                const settings = track.getSettings();
+                track.applyConstraints({
+                    advanced: [{ torch: !settings.torch }]
+                });
+            } else {
+                showStatus("フラッシュはこのブラウザ/デバイスで非対応です");
+            }
+        }
+
+        // ページ読み込み時に開始
+        window.addEventListener('load', startCamera);
+    </script>
+</body>
+</html>
