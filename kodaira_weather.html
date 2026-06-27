@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>小平市 天気</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap');
+    
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden; /* スクロールや不要な空白を完全に防止 */
+    }
+
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      background: linear-gradient(135deg, #eef5fc 0%, #f4f8fd 50%, #e9f0f8 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    /* 背景を漂う液体ライト球（Liquid Glass 装飾） */
+    .liquid-bg-1 {
+      position: absolute;
+      width: 450px;
+      height: 450px;
+      background: radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(220,235,255,0.4) 70%, rgba(255,255,255,0) 100%);
+      top: -10%;
+      left: -10%;
+      filter: blur(40px);
+      z-index: 0;
+      pointer-events: none;
+      animation: float 12s ease-in-out infinite alternate;
+    }
+
+    .liquid-bg-2 {
+      position: absolute;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(225,240,255,0.3) 60%, rgba(255,255,255,0) 100%);
+      bottom: -10%;
+      right: -10%;
+      filter: blur(50px);
+      z-index: 0;
+      pointer-events: none;
+      animation: float 16s ease-in-out infinite alternate-reverse;
+    }
+
+    @keyframes float {
+      0% { transform: translateY(0px) rotate(0deg); }
+      100% { transform: translateY(40px) rotate(15deg); }
+    }
+
+    /* 境界枠を持たず、背景と同化するリキッドグラス・メインシート */
+    .liquid-glass-content {
+      position: relative;
+      z-index: 10;
+      background: rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(25px) saturate(190%);
+      -webkit-backdrop-filter: blur(25px) saturate(190%);
+      text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8), 0 2px 10px rgba(15, 90, 180, 0.03);
+      border-radius: 40px;
+      padding: 2.5rem;
+      width: 90%;
+      max-width: 500px;
+      transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* タップ可能なお天気表示行（ホバー時の有機的な吸着エフェクト） */
+    .clickable-panel {
+      cursor: pointer;
+      border-radius: 24px;
+      padding: 12px;
+      margin: -12px;
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .clickable-panel:hover {
+      background: rgba(255, 255, 255, 0.3);
+      backdrop-filter: blur(10px);
+      transform: scale(1.02);
+    }
+    .clickable-panel:active {
+      transform: scale(0.98);
+    }
+
+    /* リキッドガラス用の艶出しテキストカラー */
+    .glossy-text {
+      background: linear-gradient(135deg, #2b5685 0%, #173b63 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .temp-high {
+      background: linear-gradient(135deg, #e05c5c 0%, #bd2a2a 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .temp-low {
+      background: linear-gradient(135deg, #4fa3e3 0%, #1e6fa3 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* スライドアップ式1時間天気詳細シート（リキッド・ボトムパネル） */
+    .detail-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: rgba(240, 245, 253, 0.4);
+      backdrop-filter: blur(35px) saturate(200%);
+      -webkit-backdrop-filter: blur(35px) saturate(200%);
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .detail-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .detail-sheet {
+      background: rgba(255, 255, 255, 0.35);
+      border-top: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 40px 40px 0 0;
+      padding: 2rem;
+      height: 85vh; /* 縦スクロール用に高さをしっかり確保 */
+      display: flex;
+      flex-direction: column;
+      transform: translateY(100%);
+      transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 -20px 50px rgba(15, 90, 180, 0.05);
+    }
+
+    .detail-overlay.active .detail-sheet {
+      transform: translateY(0);
+    }
+
+    /* 縦型スクロールエリアの装飾 */
+    .hourly-scroll-area {
+      flex: 1;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    /* 縦並びの1時間行（Liquid Glassスタイル） */
+    .hourly-row {
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-radius: 16px;
+      transition: background 0.2s ease;
+    }
+    .hourly-row:hover {
+      background: rgba(255, 255, 255, 0.45);
+    }
+
+    /* スクロールバー非表示化 */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* 気象画像コンテナの絶対アセット調整 */
+    .weather-image-container img {
+      max-width: 80px;
+      height: auto;
+      display: inline-block;
+      filter: drop-shadow(0 4px 6px rgba(0,0,0,0.05));
+    }
+
+    /* 1時間詳細内の天気アイコン縮小化 */
+    .hourly-row-img-container img {
+      max-width: 44px;
+      height: auto;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 背景を漂うリキッドライト球 -->
+  <div class="liquid-bg-1"></div>
+  <div class="liquid-bg-2"></div>
+
+  <!-- メインコンテンツ部 -->
+  <div class="liquid-glass-content px-6 py-8 sm:px-10">
+    
+    <!-- ヘッダー -->
+    <div class="text-center mb-8">
+      <p class="text-xs tracking-widest text-blue-500/80 font-bold uppercase mb-1">Live Weather</p>
+      <h1 class="text-3xl font-extrabold tracking-tight glossy-text">小平市</h1>
+    </div>
+
+    <!-- メイン表示エリア (タップ対応) -->
+    <div class="space-y-8">
+      
+      <!-- 今日パネル -->
+      <div id="today-panel" class="clickable-panel flex items-center justify-between" onclick="openHourly('today')">
+        <div class="space-y-1">
+          <p class="text-xs font-bold text-gray-400/90 tracking-wide uppercase">Today</p>
+          <p id="today-date" class="text-lg font-medium text-slate-700">06月27日(土)</p>
+          <p id="today-telop" class="text-2xl font-bold glossy-text">雨のち晴</p>
+        </div>
+        <div class="text-right">
+          <div id="today-icon" class="mb-1 flex justify-end weather-image-container">
+            <img src="https://static.tenki.jp/images/icon/lite-forecast-days-weather/large_19.png" alt="雨のち晴" width="80">
+          </div>
+          <div class="flex items-baseline justify-end space-x-3">
+            <span class="text-3xl font-extrabold temp-high" id="today-temp-max">24°</span>
+            <span class="text-sm font-medium text-gray-400">/</span>
+            <span class="text-xl font-bold temp-low" id="today-temp-min">21°</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 緩やかな仕切り線 -->
+      <div class="h-[1px]" style="background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(15, 90, 180, 0.08) 50%, rgba(255,255,255,0) 100%);"></div>
+
+      <!-- 明日パネル -->
+      <div id="tomorrow-panel" class="clickable-panel flex items-center justify-between" onclick="openHourly('tomorrow')">
+        <div class="space-y-1">
+          <p class="text-xs font-bold text-gray-400/90 tracking-wide uppercase">Tomorrow</p>
+          <p id="tomorrow-date" class="text-lg font-medium text-slate-700">06月28日(日)</p>
+          <p id="tomorrow-telop" class="text-2xl font-bold glossy-text">雨時々曇</p>
+        </div>
+        <div class="text-right">
+          <div id="tomorrow-icon" class="mb-1 flex justify-end weather-image-container">
+            <img src="https://static.tenki.jp/images/icon/lite-forecast-days-weather/large_17.png" alt="雨時々曇" width="80">
+          </div>
+          <div class="flex items-baseline justify-end space-x-3">
+            <span class="text-3xl font-extrabold temp-high" id="tomorrow-temp-max">24°</span>
+            <span class="text-sm font-medium text-gray-400">/</span>
+            <span class="text-xl font-bold temp-low" id="tomorrow-temp-min">21°</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- スライドアップ 1時間天気詳細コンテナ -->
+  <div id="hourly-overlay" class="detail-overlay" onclick="closeHourly(event)">
+    <div class="detail-sheet w-full max-w-lg mx-auto" onclick="event.stopPropagation()">
+      
+      <!-- シートヘッダー -->
+      <div class="flex items-center justify-between mb-4 flex-shrink-0">
+        <div>
+          <h2 id="hourly-title" class="text-2xl font-extrabold glossy-text">1時間天気予報</h2>
+          <p id="hourly-subtitle" class="text-sm text-slate-500 font-medium">小平市</p>
+        </div>
+        <button onclick="closeHourly(null)" class="w-10 h-10 flex items-center justify-center rounded-full bg-white/40 hover:bg-white/80 transition-all text-slate-600 font-bold text-xl">✕</button>
+      </div>
+
+      <!-- 1時間お天気のタイムライン (縦型スクロールリスト) -->
+      <div id="hourly-scroll-container" class="hourly-scroll-area no-scrollbar space-y-2 pb-4">
+        <div id="hourly-list-container" class="space-y-2">
+          <!-- JSで動的に縦列を挿入 -->
+        </div>
+      </div>
+      
+    </div>
+  </div>
+
+  <script>
+    // URL設定
+    const SUMMARY_URL = 'https://proxy.cors.sh/https://tenki.jp/lite/forecast/3/16/4410/13211/';
+    const HOURLY_URL = 'https://proxy.cors.sh/https://tenki.jp/lite/forecast/3/16/4410/13211/1hour.html';
+
+    // 取得した生の1時間天気パースデータ保持用
+    let parsedHourlyData = {
+      today: [],
+      tomorrow: []
+    };
+
+    // 今日・明日情報の定期取得
+    function fetchSummaries() {
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', SUMMARY_URL);
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4 && xhr.status === 200) {
+          applySummary(xhr.responseText);
+        }
+      };
+      xhr.send();
+    }
+
+    // 1時間詳細情報の定期取得
+    function fetchHourly() {
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', HOURLY_URL);
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4 && xhr.status === 200) {
+          parseHourly(xhr.responseText);
+        }
+      };
+      xhr.send();
+    }
+
+    // 今日・明日のサマリーを画面に適用
+    function applySummary(htmlText) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlText, 'text/html');
+
+      const todaySection = doc.getElementById('today_weather');
+      const tomorrowSection = doc.getElementById('tomorrow_weather');
+
+      if (todaySection) {
+        const todayDateEl = todaySection.querySelector('.date-box');
+        if (todayDateEl) {
+          document.getElementById('today-date').innerText = todayDateEl.innerText.replace(/\s+/g, '').replace('今日の天気', '');
+        }
+
+        const todayTelopEl = todaySection.querySelector('.weather-telop');
+        if (todayTelopEl) document.getElementById('today-telop').innerText = todayTelopEl.innerText.trim();
+
+        const todayPicEl = todaySection.querySelector('.weather-icon-box picture');
+        const todayIconContainer = document.getElementById('today-icon');
+        if (todayPicEl && todayIconContainer) {
+          const clonePic = adjustImagePaths(todayPicEl.cloneNode(true));
+          todayIconContainer.innerHTML = '';
+          todayIconContainer.appendChild(clonePic);
+        }
+
+        const todayMaxEl = todaySection.querySelector('.high-temp.temp .value');
+        if (todayMaxEl) document.getElementById('today-temp-max').innerText = todayMaxEl.innerText + '°';
+
+        const todayMinEl = todaySection.querySelector('.low-temp.temp .value');
+        if (todayMinEl) document.getElementById('today-temp-min').innerText = todayMinEl.innerText + '°';
+      }
+
+      if (tomorrowSection) {
+        const tomorrowDateEl = tomorrowSection.querySelector('.date-box');
+        if (tomorrowDateEl) {
+          document.getElementById('tomorrow-date').innerText = tomorrowDateEl.innerText.replace(/\s+/g, '').replace('明日の天気', '');
+        }
+
+        const tomorrowTelopEl = tomorrowSection.querySelector('.weather-telop');
+        if (tomorrowTelopEl) document.getElementById('tomorrow-telop').innerText = tomorrowTelopEl.innerText.trim();
+
+        const tomorrowPicEl = tomorrowSection.querySelector('.weather-icon-box picture');
+        const tomorrowIconContainer = document.getElementById('tomorrow-icon');
+        if (tomorrowPicEl && tomorrowIconContainer) {
+          const clonePic = adjustImagePaths(tomorrowPicEl.cloneNode(true));
+          tomorrowIconContainer.innerHTML = '';
+          tomorrowIconContainer.appendChild(clonePic);
+        }
+
+        const tomorrowMaxEl = tomorrowSection.querySelector('.high-temp.temp .value');
+        if (tomorrowMaxEl) document.getElementById('tomorrow-temp-max').innerText = tomorrowMaxEl.innerText + '°';
+
+        const tomorrowMinEl = tomorrowSection.querySelector('.low-temp.temp .value');
+        if (tomorrowMinEl) document.getElementById('tomorrow-temp-min').innerText = tomorrowMinEl.innerText + '°';
+      }
+    }
+
+    // 1時間お天気のパース処理
+    function parseHourly(htmlText) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlText, 'text/html');
+
+      parsedHourlyData.today = extractTableData(doc.getElementById('forecast-point-1h-today'));
+      parsedHourlyData.tomorrow = extractTableData(doc.getElementById('forecast-point-1h-tomorrow'));
+    }
+
+    // 1時間お天気テーブルから全時間帯のデータを抽出
+    function extractTableData(tableEl) {
+      if (!tableEl) return [];
+      const data = [];
+      const rows = tableEl.querySelectorAll('tr.entry, tr.past-entry');
+
+      rows.forEach(row => {
+        const hourEl = row.querySelector('td.hour');
+        const telopEl = row.querySelector('.weather-telop');
+        const tempEl = row.querySelector('.temperature span, .temperature-past span');
+        const probEl = row.querySelector('td.prob-precip');
+        const precipEl = row.querySelector('td.precip');
+        const picEl = row.querySelector('.weather-image picture, .weather-image img');
+
+        if (hourEl && telopEl && tempEl) {
+          let picHtml = '';
+          if (picEl) {
+            const cloneNode = adjustImagePaths(picEl.cloneNode(true));
+            picHtml = cloneNode.outerHTML;
+          }
+
+          data.push({
+            hour: hourEl.innerText.trim() + '時',
+            telop: telopEl.innerText.trim(),
+            temp: tempEl.innerText.trim() + '°',
+            prob: (probEl ? probEl.innerText.trim() : '0') + '%',
+            precip: (precipEl ? precipEl.innerText.trim() : '0') + 'mm',
+            pic: picHtml
+          });
+        }
+      });
+      return data;
+    }
+
+    // 画像パスの正規化
+    function adjustImagePaths(node) {
+      const source = node.querySelector('source');
+      const img = node.nodeName === 'IMG' ? node : node.querySelector('img');
+
+      if (source && source.getAttribute('srcset')) {
+        let srcset = source.getAttribute('srcset');
+        if (srcset.startsWith('/')) {
+          source.setAttribute('srcset', 'https://static.tenki.jp' + srcset);
+        }
+      }
+      if (img) {
+        let src = img.getAttribute('src');
+        if (src && src.startsWith('/')) {
+          img.setAttribute('src', 'https://static.tenki.jp' + src);
+        }
+      }
+      return node;
+    }
+
+    // 1時間お天気詳細シートを開く
+    function openHourly(day) {
+      const overlay = document.getElementById('hourly-overlay');
+      const title = document.getElementById('hourly-title');
+      const subtitle = document.getElementById('hourly-subtitle');
+      const listContainer = document.getElementById('hourly-list-container');
+      const scrollContainer = document.getElementById('hourly-scroll-container');
+
+      const isToday = day === 'today';
+      const dayName = isToday ? '今日' : '明日';
+      const dateString = document.getElementById(isToday ? 'today-date' : 'tomorrow-date').innerText;
+
+      title.innerText = `${dayName}の1時間天気`;
+      subtitle.innerText = dateString;
+
+      listContainer.innerHTML = '';
+
+      // 開くたびにスクロール位置を最上部（一番上）に強制リセット
+      if (scrollContainer) {
+        scrollContainer.scrollTop = 0;
+      }
+
+      const hourlyList = parsedHourlyData[day] || [];
+
+      if (hourlyList.length === 0) {
+        listContainer.innerHTML = '<div class="text-slate-500/80 text-sm py-8 w-full text-center">データを取得中...</div>';
+      } else {
+        hourlyList.forEach(item => {
+          const row = document.createElement('div');
+          row.className = 'hourly-row flex items-center justify-between px-5 py-3';
+          row.innerHTML = `
+            <!-- 時刻 -->
+            <div class="w-14 text-left">
+              <span class="text-base font-extrabold text-slate-700">${item.hour}</span>
+            </div>
+
+            <!-- 天気マークとテロップ -->
+            <div class="flex items-center space-x-3 flex-1 px-2">
+              <div class="w-11 h-11 flex items-center justify-center hourly-row-img-container">${item.pic}</div>
+              <span class="text-sm font-bold text-slate-800">${item.telop}</span>
+            </div>
+
+            <!-- 気温と降水確率 -->
+            <div class="flex items-center space-x-4 text-right">
+              <span class="text-lg font-extrabold text-slate-900 w-12">${item.temp}</span>
+              <div class="flex flex-col text-[11px] font-bold text-blue-500/80 w-16">
+                <span>☔ ${item.prob}</span>
+                <span class="text-gray-400 font-medium text-[9px]">${item.precip}</span>
+              </div>
+            </div>
+          `;
+          listContainer.appendChild(row);
+        });
+      }
+
+      overlay.classList.add('active');
+    }
+
+    // 1時間お天気詳細シートを閉じる
+    function closeHourly(event) {
+      if (event) event.stopPropagation();
+      document.getElementById('hourly-overlay').classList.remove('active');
+    }
+
+    // 1秒ごとにノンブロッキング更新
+    setInterval(() => {
+      fetchSummaries();
+      fetchHourly();
+    }, 1000);
+
+    // 初回起動
+    window.onload = function() {
+      fetchSummaries();
+      fetchHourly();
+    };
+  </script>
+</body>
+</html>
