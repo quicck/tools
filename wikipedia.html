@@ -1,325 +1,493 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Wikipedia Reader</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;600&family=Noto+Sans+JP:wght@400;700&display=swap');
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wikipedia Viewer</title>
+  <style>
+    /* 極限まで簡素でプレーンなスタイル */
+    body {
+      font-family: sans-serif;
+      line-height: 1.6;
+      margin: 20px;
+      color: #333;
+    }
 
-        :root {
-            --ios-blur: blur(40px);
-            --ios-bg: rgba(255, 255, 255, 0.7);
-            --ios-shadow: 0 15px 50px rgba(0, 0, 0, 0.15);
-        }
+    /* ヘッダーエリア */
+    #header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #ccc;
+    }
 
-        body {
-            font-family: 'SF Pro Display', 'Noto Sans JP', -apple-system, sans-serif;
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            background-attachment: fixed;
-            min-height: 100vh;
-            margin: 0;
-            color: #1d1d1f;
-            -webkit-font-smoothing: antialiased;
-        }
+    #search-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
 
-        .glass-panel {
-            background: var(--ios-bg);
-            backdrop-filter: var(--ios-blur);
-            -webkit-backdrop-filter: var(--ios-blur);
-            border: 1px solid rgba(255, 255, 255, 0.4);
-            box-shadow: var(--ios-shadow);
-        }
+    .nav-buttons {
+      display: flex;
+      gap: 5px;
+    }
 
-        .rounded-ios { border-radius: 20px; }
+    input[type="text"] {
+      padding: 5px 10px;
+      font-size: 16px;
+      width: 250px;
+    }
 
-        /* Wikipedia Content Content */
-        .wiki-content {
-            line-height: 1.8;
-            font-size: 1.05rem;
-        }
+    button {
+      padding: 5px 15px;
+      font-size: 16px;
+      cursor: pointer;
+    }
 
-        .wiki-content a {
-            color: #007aff !important;
-            text-decoration: none !important;
-        }
+    /* 設定ボタン */
+    #btn-settings {
+      padding: 5px 10px;
+      font-size: 18px;
+      background: none;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
 
-        /* Footnote Jump Animation */
-        .jump-target-highlight {
-            animation: highlight-pulse 2s ease-out;
-        }
-        @keyframes highlight-pulse {
-            0% { background-color: rgba(0, 122, 255, 0.3); border-radius: 6px; }
-            100% { background-color: transparent; }
-        }
+    #btn-settings:hover {
+      background-color: #f0f0f0;
+    }
 
-        /* iOS Action Sheet System */
-        #overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.3);
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s ease;
-            z-index: 100;
-        }
-        #overlay.active { opacity: 1; pointer-events: auto; }
+    /* 非活性ボタン用のスタイル */
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
 
-        #actionSheetContainer {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            padding: 16px;
-            z-index: 101;
-            transform: translateY(100%);
-            transition: transform 0.4s cubic-bezier(0.2, 0.9, 0.4, 1);
-            max-width: 500px;
-            margin: 0 auto;
-        }
-        #actionSheetContainer.active { transform: translateY(0); }
+    /* 改行されないように修正 */
+    #loading {
+      display: none;
+      color: #666;
+      font-style: italic;
+      white-space: nowrap;
+    }
 
-        .sheet-group {
-            overflow: hidden;
-            margin-bottom: 8px;
-        }
+    /* Wikipediaの画像やテーブルの崩れを最低限防ぐスタイル */
+    #content img {
+      max-width: 100%;
+      height: auto;
+    }
 
-        .action-button {
-            width: 100%;
-            padding: 16px;
-            font-size: 19px;
-            color: #007aff;
-            background: var(--ios-bg);
-            backdrop-filter: var(--ios-blur);
-            -webkit-backdrop-filter: var(--ios-blur);
-            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-            transition: background 0.2s;
-            text-align: center;
-        }
-        .action-button:active { background: rgba(0, 0, 0, 0.05); }
-        .action-button:last-child { border-bottom: none; }
+    /* モーダルダイアログ共通（リンク選択・設定画面） */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
 
-        .sheet-title {
-            padding: 12px 16px;
-            font-size: 13px;
-            color: #8e8e93;
-            background: var(--ios-bg);
-            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-            text-align: center;
-        }
+    .modal-content {
+      background: #fff;
+      padding: 20px;
+      border-radius: 5px;
+      max-width: 450px;
+      width: 90%;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+      word-break: break-all;
+    }
 
-        .cancel-button {
-            width: 100%;
-            padding: 16px;
-            font-size: 19px;
-            font-weight: 600;
-            color: #007aff;
-            background: #fff;
-            border-radius: 14px;
-            text-align: center;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        }
-        .cancel-button:active { background: #f2f2f7; }
+    .modal-content h3 {
+      margin-top: 0;
+      margin-bottom: 15px;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 8px;
+    }
 
-        /* Loader Animation */
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid rgba(0, 122, 255, 0.1);
-            border-top-color: #007aff;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin: 0 auto;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
+    .setting-group {
+      margin-bottom: 15px;
+    }
 
-        /* Error Box */
-        #errorBox {
-            display: none;
-            background: rgba(255, 255, 255, 0.8);
-            border: 1px solid rgba(255, 59, 48, 0.3);
-            color: #ff3b30;
-            padding: 20px;
-            text-align: center;
-            border-radius: 20px;
-            margin-bottom: 20px;
-        }
-    </style>
+    .setting-group label {
+      display: block;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .setting-group select {
+      width: 100%;
+      padding: 6px;
+      font-size: 14px;
+    }
+
+    .modal-buttons {
+      margin-top: 20px;
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .modal-buttons button {
+      font-size: 14px;
+    }
+  </style>
 </head>
-<body class="p-4 md:p-8">
+<body>
 
-    <div class="max-w-4xl mx-auto">
-        <!-- Search -->
-        <header class="glass-panel rounded-ios p-6 mb-8 sticky top-4 z-40">
-            <div class="relative flex items-center">
-                <input 
-                    type="text" 
-                    id="searchInput" 
-                    placeholder="キーワードを入力して検索..." 
-                    class="w-full py-4 px-6 rounded-2xl text-lg bg-white/40 border-none outline-none focus:ring-2 focus:ring-blue-500/30 transition-all pr-14"
-                >
-                <button onclick="handleSearch()" class="absolute right-3 text-blue-500 p-2 hover:scale-110 active:scale-95 transition-transform">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                </button>
-            </div>
-        </header>
-
-        <!-- Loader -->
-        <div id="loader" class="hidden py-32 text-center">
-            <div class="spinner mb-4"></div>
-            <p class="text-gray-500 font-medium">情報を取得中...</p>
-        </div>
-
-        <!-- Error Message -->
-        <div id="errorBox" class="fade-in">
-            <p class="font-bold text-lg mb-1">記事が見つかりませんでした</p>
-            <p class="text-sm opacity-80">入力した名前が正しいか確認して、もう一度入力し直してください。</p>
-        </div>
-
-        <!-- Article -->
-        <main id="articleView" class="hidden glass-panel rounded-ios p-8 md:p-12 mb-12">
-            <h1 id="articleTitle" class="text-4xl font-extrabold mb-10 text-gray-900 tracking-tight leading-tight"></h1>
-            <div id="articleBody" class="wiki-content"></div>
-        </main>
+  <!-- ヘッダーエリア（ナビゲーション＋検索＋設定） -->
+  <div id="header">
+    <div id="search-box">
+      <div class="nav-buttons">
+        <button id="btn-back" disabled title="戻る">←</button>
+        <button id="btn-forward" disabled title="進む">→</button>
+      </div>
+      <input type="text" id="title-input" placeholder="Wikipediaの記事タイトル" value="メインページ">
+      <button id="search-btn">表示</button>
+      <span id="loading">読み込み中...</span>
     </div>
+    <button id="btn-settings" title="設定">⚙</button>
+  </div>
 
-    <!-- iOS UI Components -->
-    <div id="overlay"></div>
-    <div id="actionSheetContainer">
-        <!-- Action Group -->
-        <div class="sheet-group rounded-ios glass-panel">
-            <div id="sheetTitle" class="sheet-title truncate">Wikipedia リンク</div>
-            <button id="btnInternal" class="action-button">このページで開く</button>
-            <button id="btnExternal" class="action-button">Wikipediaで開く</button>
-        </div>
-        <!-- Cancel Group -->
-        <button id="btnCancel" class="cancel-button">キャンセル</button>
+  <!-- 記事本文表示エリア -->
+  <div id="content"></div>
+
+  <!-- リンククリック時の確認ダイアログ -->
+  <div id="link-modal" class="modal-overlay">
+    <div class="modal-content">
+      <p id="modal-text"></p>
+      <div class="modal-buttons">
+        <button id="btn-open-url">URLを開く</button>
+        <button id="btn-load-internal">このページで表示</button>
+        <button id="btn-cancel">キャンセル</button>
+      </div>
     </div>
+  </div>
 
-    <script>
-        const searchInput = document.getElementById('searchInput');
-        const loader = document.getElementById('loader');
-        const articleView = document.getElementById('articleView');
-        const articleTitle = document.getElementById('articleTitle');
-        const articleBody = document.getElementById('articleBody');
-        const errorBox = document.getElementById('errorBox');
-        const overlay = document.getElementById('overlay');
-        const actionSheet = document.getElementById('actionSheetContainer');
-        const sheetTitle = document.getElementById('sheetTitle');
-        
-        let pendingData = { title: '', url: '' };
+  <!-- 設定モーダルダイアログ -->
+  <div id="settings-modal" class="modal-overlay">
+    <div class="modal-content">
+      <h3>設定</h3>
+      
+      <!-- 外部リンクの設定 -->
+      <div class="setting-group">
+        <label for="setting-ext-link">外部リンククリック時:</label>
+        <select id="setting-ext-link">
+          <option value="confirm">確認ダイアログを表示する</option>
+          <option value="direct">確認なしでURLを開く</option>
+        </select>
+      </div>
 
-        // Search Input Logic
-        searchInput.onkeypress = (e) => { if (e.key === 'Enter') handleSearch(); };
+      <!-- Wikipediaリンクの設定 -->
+      <div class="setting-group">
+        <label for="setting-wiki-link">Wikipedia記事リンククリック時:</label>
+        <select id="setting-wiki-link">
+          <option value="confirm">確認ダイアログを表示する</option>
+          <option value="direct">確認なしで移動する</option>
+        </select>
+      </div>
 
-        function handleSearch() {
-            const query = searchInput.value.trim();
-            if (query) fetchWikiData(query);
+      <!-- Wikipediaリンクの直接移動モード -->
+      <div class="setting-group" id="group-wiki-action">
+        <label for="setting-wiki-action">Wikipedia記事の直接移動方法:</label>
+        <select id="setting-wiki-action">
+          <option value="internal">このページ（アプリ内）で開く</option>
+          <option value="url">新しいタブでURLを開く</option>
+        </select>
+      </div>
+
+      <div class="modal-buttons">
+        <button id="btn-save-settings">保存して閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const searchBtn = document.getElementById('search-btn');
+    const titleInput = document.getElementById('title-input');
+    const contentDiv = document.getElementById('content');
+    const loadingSpan = document.getElementById('loading');
+
+    const btnBack = document.getElementById('btn-back');
+    const btnForward = document.getElementById('btn-forward');
+
+    // リンクダイアログ用要素
+    const linkModal = document.getElementById('link-modal');
+    const modalText = document.getElementById('modal-text');
+    const btnOpenUrl = document.getElementById('btn-open-url');
+    const btnLoadInternal = document.getElementById('btn-load-internal');
+    const btnCancel = document.getElementById('btn-cancel');
+
+    // 設定ダイアログ用要素
+    const btnSettings = document.getElementById('btn-settings');
+    const settingsModal = document.getElementById('settings-modal');
+    const settingExtLink = document.getElementById('setting-ext-link');
+    const settingWikiLink = document.getElementById('setting-wiki-link');
+    const settingWikiAction = document.getElementById('setting-wiki-action');
+    const groupWikiAction = document.getElementById('group-wiki-action');
+    const btnSaveSettings = document.getElementById('btn-save-settings');
+
+    let currentTargetUrl = '';
+    let currentWikiTitle = '';
+
+    // 閲覧履歴（履歴スタック）の管理
+    let historyStack = [];
+    let historyIndex = -1;
+
+    // 設定情報の初期化・読み込み (localStorage)
+    const settings = {
+      extLinkMode: 'confirm',     // 'confirm' | 'direct'
+      wikiLinkMode: 'confirm',    // 'confirm' | 'direct'
+      wikiAction: 'internal'      // 'internal' | 'url'
+    };
+
+    function loadSettings() {
+      const saved = localStorage.getItem('wiki_viewer_settings');
+      if (saved) {
+        try {
+          Object.assign(settings, JSON.parse(saved));
+        } catch (e) {
+          console.error('設定の読み込みに失敗しました', e);
         }
+      }
+      
+      // フォームの初期値を反映
+      settingExtLink.value = settings.extLinkMode;
+      settingWikiLink.value = settings.wikiLinkMode;
+      settingWikiAction.value = settings.wikiAction;
+      
+      toggleWikiActionVisibility();
+    }
 
-        async function fetchWikiData(query) {
-            setLoading(true);
-            errorBox.style.display = 'none';
+    function saveSettings() {
+      settings.extLinkMode = settingExtLink.value;
+      settings.wikiLinkMode = settingWikiLink.value;
+      settings.wikiAction = settingWikiAction.value;
+      
+      localStorage.setItem('wiki_viewer_settings', JSON.stringify(settings));
+    }
+
+    function toggleWikiActionVisibility() {
+      // Direct移動が選択されている時のみ、移動オプションを表示
+      if (settingWikiLink.value === 'direct') {
+        groupWikiAction.style.display = 'block';
+      } else {
+        groupWikiAction.style.display = 'none';
+      }
+    }
+
+    // 設定モーダルイベント設定
+    btnSettings.addEventListener('click', () => {
+      loadSettings();
+      settingsModal.style.display = 'flex';
+    });
+
+    settingWikiLink.addEventListener('change', toggleWikiActionVisibility);
+
+    btnSaveSettings.addEventListener('click', () => {
+      saveSettings();
+      settingsModal.style.display = 'none';
+    });
+
+    // 戻る・進むボタンの状態更新
+    function updateNavButtons() {
+      btnBack.disabled = (historyIndex <= 0);
+      btnForward.disabled = (historyIndex >= historyStack.length - 1);
+    }
+
+    // 戻るボタンの処理
+    btnBack.addEventListener('click', () => {
+      if (historyIndex > 0) {
+        historyIndex--;
+        const previousTitle = historyStack[historyIndex];
+        fetchWikipediaArticle(previousTitle, false);
+      }
+    });
+
+    // 進むボタンの処理
+    btnForward.addEventListener('click', () => {
+      if (historyIndex < historyStack.length - 1) {
+        historyIndex++;
+        const nextTitle = historyStack[historyIndex];
+        fetchWikipediaArticle(nextTitle, false);
+      }
+    });
+
+    // 検索ボタンクリック時
+    searchBtn.addEventListener('click', () => {
+      const title = titleInput.value.trim();
+      if (title) {
+        fetchWikipediaArticle(title, true);
+      }
+    });
+
+    // Enterキーでも検索可能に
+    titleInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        searchBtn.click();
+      }
+    });
+
+    // Wikipedia APIから解析済みHTMLデータを取得
+    function fetchWikipediaArticle(title, isNewSearch = true) {
+      loadingSpan.style.display = 'inline';
+      
+      const url = `https://ja.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(title)}&format=json&origin=*&prop=text|title`;
+
+      fetch(url)
+        .then(response => response.json())
+        .then(data => {
+          loadingSpan.style.display = 'none';
+
+          if (data.error) {
+            contentDiv.innerHTML = `<p style="color:red;">エラー: ${data.error.info}</p>`;
+            return;
+          }
+
+          if (data.parse && data.parse.text) {
+            const canonicalTitle = data.parse.title;
+
+            if (isNewSearch) {
+              historyStack = historyStack.slice(0, historyIndex + 1);
+              historyStack.push(canonicalTitle);
+              historyIndex = historyStack.length - 1;
+            }
+            updateNavButtons();
+
+            titleInput.value = canonicalTitle;
             
-            try {
-                // 完全一致検索（リダイレクトを自動解決する redirects=1 を使用）
-                const pUrl = `https://ja.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(query)}&prop=text|displaytitle&redirects=1&format=json&origin=*`;
-                const pRes = await fetch(pUrl);
-                const pData = await pRes.json();
+            let htmlContent = data.parse.text['*'];
+            contentDiv.innerHTML = htmlContent;
 
-                if (pData.error) {
-                    // 解析に失敗した場合（ページが存在しない場合）
-                    throw new Error("Page Not Found");
-                }
-
-                const displayTitle = pData.parse.displaytitle || query;
-                displayArticle(displayTitle, pData.parse.text['*']);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            } catch (err) {
-                articleView.classList.add('hidden');
-                errorBox.style.display = 'block';
-            } finally {
-                setLoading(false);
-            }
-        }
-
-        function displayArticle(title, html) {
-            // HTMLタグがタイトルに含まれる場合があるためinnerHTMLで設定
-            articleTitle.innerHTML = title;
-            const temp = document.createElement('div');
-            temp.innerHTML = html;
-
-            // Remove clutter
-            const junk = ['.mw-empty-elt', '.navbox', '.infobox', '.metadata', '.ambox', '.mw-editsection', '.noprint', 'style'];
-            junk.forEach(s => temp.querySelectorAll(s).forEach(el => el.remove()));
-
-            articleBody.innerHTML = temp.innerHTML;
-            articleView.classList.remove('hidden');
-        }
-
-        // Global Event Listener for links (Delegation)
-        articleBody.addEventListener('click', (e) => {
-            const a = e.target.closest('a');
-            if (!a) return;
-
-            const href = a.getAttribute('href');
-            if (!href) return;
-
-            e.preventDefault();
-
-            // Footnote
-            if (href.startsWith('#')) {
-                const targetId = decodeURIComponent(href.substring(1));
-                const target = document.getElementById(targetId) || document.getElementsByName(targetId)[0];
-                if (target) {
-                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    target.classList.add('jump-target-highlight');
-                    setTimeout(() => target.classList.remove('jump-target-highlight'), 2000);
-                }
-            } 
-            // Internal Wiki Link
-            else if (href.startsWith('/wiki/') && !href.includes(':')) {
-                const cleanTitle = decodeURIComponent(href.split('/wiki/')[1]).replace(/_/g, ' ');
-                pendingData = { title: cleanTitle, url: `https://ja.wikipedia.org${href}` };
-                
-                sheetTitle.textContent = cleanTitle;
-                overlay.classList.add('active');
-                actionSheet.classList.add('active');
-            }
-            // External
-            else if (href.startsWith('http')) {
-                window.open(href, '_blank');
-            }
+            fixImageUrls();
+            window.scrollTo(0, 0);
+          } else {
+            contentDiv.innerHTML = '<p>記事が見つかりませんでした。</p>';
+          }
+        })
+        .catch(err => {
+          loadingSpan.style.display = 'none';
+          contentDiv.innerHTML = `<p style="color:red;">通信エラーが発生しました。</p>`;
+          console.error(err);
         });
+    }
 
-        // UI Modal Actions
-        const closeSheet = () => {
-            overlay.classList.remove('active');
-            actionSheet.classList.remove('active');
-        };
-
-        overlay.onclick = closeSheet;
-        document.getElementById('btnCancel').onclick = closeSheet;
-
-        document.getElementById('btnInternal').onclick = () => {
-            searchInput.value = pendingData.title;
-            closeSheet();
-            fetchWikiData(pendingData.title);
-        };
-
-        document.getElementById('btnExternal').onclick = () => {
-            window.open(pendingData.url, '_blank');
-            closeSheet();
-        };
-
-        function setLoading(state) {
-            loader.classList.toggle('hidden', !state);
-            if (state) articleView.classList.add('hidden');
+    // 記事内の画像URLを補正
+    function fixImageUrls() {
+      const images = contentDiv.querySelectorAll('img');
+      images.forEach(img => {
+        let src = img.getAttribute('src');
+        if (src) {
+          if (src.startsWith('//')) {
+            img.src = 'https:' + src;
+          } else if (src.startsWith('/')) {
+            img.src = 'https://ja.wikipedia.org' + src;
+          }
         }
-    </script>
+
+        let srcset = img.getAttribute('srcset');
+        if (srcset) {
+          const fixedSrcset = srcset.split(',').map(part => {
+            let [url, descriptor] = part.trim().split(/\s+/);
+            if (url.startsWith('//')) {
+              url = 'https:' + url;
+            } else if (url.startsWith('/')) {
+              url = 'https://ja.wikipedia.org' + url;
+            }
+            return descriptor ? `${url} ${descriptor}` : url;
+          }).join(', ');
+          img.setAttribute('srcset', fixedSrcset);
+        }
+      });
+    }
+
+    // 記事エリア内のリンククリックイベントハンドラ
+    contentDiv.addEventListener('click', (e) => {
+      const link = e.target.closest('a');
+      if (!link) return;
+
+      const href = link.getAttribute('href');
+      if (!href) return;
+
+      // ページ内アンカー（#...）の場合は通常のジャンプ動作を許可
+      if (href.startsWith('#')) {
+        return;
+      }
+
+      e.preventDefault(); // デフォルトの遷移を停止
+
+      currentTargetUrl = link.href; // フルURL
+      currentWikiTitle = '';
+
+      // Wikipediaの内部リンクか判定（/wiki/xxx 形式）
+      if (href.startsWith('/wiki/')) {
+        const rawTitle = href.replace(/^\/wiki\//, '').split('#')[0];
+        currentWikiTitle = decodeURIComponent(rawTitle);
+      }
+
+      // 設定に基づいて分岐処理
+      if (currentWikiTitle) {
+        // --- Wikipedia内部リンク ---
+        if (settings.wikiLinkMode === 'direct') {
+          if (settings.wikiAction === 'internal') {
+            fetchWikipediaArticle(currentWikiTitle, true);
+          } else {
+            window.open(currentTargetUrl, '_blank', 'noopener,noreferrer');
+          }
+        } else {
+          showLinkModal(currentTargetUrl, currentWikiTitle);
+        }
+      } else {
+        // --- 外部リンク ---
+        if (settings.extLinkMode === 'direct') {
+          window.open(currentTargetUrl, '_blank', 'noopener,noreferrer');
+        } else {
+          showLinkModal(currentTargetUrl, '');
+        }
+      }
+    });
+
+    // モーダルダイアログの表示
+    function showLinkModal(url, wikiTitle) {
+      if (wikiTitle) {
+        modalText.textContent = `Wikipedia記事「${wikiTitle}」へのリンクです。どのように開きますか？`;
+        btnLoadInternal.style.display = 'inline-block';
+      } else {
+        modalText.textContent = `外部URL (${url}) へのリンクです。URLを開きますか？`;
+        btnLoadInternal.style.display = 'none';
+      }
+
+      linkModal.style.display = 'flex';
+    }
+
+    // リンクダイアログイベント設定
+    btnOpenUrl.addEventListener('click', () => {
+      linkModal.style.display = 'none';
+      if (currentTargetUrl) {
+        window.open(currentTargetUrl, '_blank', 'noopener,noreferrer');
+      }
+    });
+
+    btnLoadInternal.addEventListener('click', () => {
+      linkModal.style.display = 'none';
+      if (currentWikiTitle) {
+        fetchWikipediaArticle(currentWikiTitle, true);
+      }
+    });
+
+    btnCancel.addEventListener('click', () => {
+      linkModal.style.display = 'none';
+    });
+
+    // 初期処理
+    loadSettings();
+    fetchWikipediaArticle('メインページ', true);
+  </script>
 </body>
 </html>
-
