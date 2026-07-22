@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ニュース</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", Hiragino Kaku Gothic ProN, Arial, sans-serif;
+      margin: 1rem;
+      padding: 0;
+      background: #ffffff;
+      color: #000000;
+      line-height: 1.6;
+    }
+
+    /* 地震緊急アラートバー (条件該当時のみ表示) */
+    #earthquake-alert {
+      display: none;
+      background-color: #d32f2f;
+      color: #ffffff;
+      padding: 0.8rem 1rem;
+      margin-bottom: 1rem;
+      border-radius: 4px;
+      font-weight: bold;
+      box-shadow: 0 2px 8px rgba(211, 47, 47, 0.3);
+    }
+
+    #earthquake-alert .eq-title {
+      font-size: 1.1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+      padding-bottom: 0.3rem;
+      margin-bottom: 0.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #earthquake-alert .eq-detail {
+      font-size: 0.95rem;
+      font-weight: normal;
+    }
+
+    /* 一覧表示用スタイル */
+    #list-view {
+      display: block;
+    }
+
+    ul.news-list {
+      list-style-type: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    li.news-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.8rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.8rem;
+      border-bottom: 1px solid #eeeeee;
+      cursor: pointer;
+    }
+
+    li.news-item:hover {
+      background-color: #f9f9f9;
+    }
+
+    .news-thumb {
+      width: 80px;
+      height: 80px;
+      object-fit: cover;
+      background-color: #e0e0e0;
+      flex-shrink: 0;
+    }
+
+    .news-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .news-title {
+      color: #0000cc;
+      text-decoration: underline;
+      font-size: 1rem;
+      font-weight: bold;
+      margin-bottom: 0.3rem;
+      word-break: break-word;
+    }
+
+    .news-time {
+      color: #666666;
+      font-size: 0.8em;
+    }
+
+    /* 詳細表示用スタイル */
+    #detail-view {
+      display: none;
+      width: 100%;
+      max-width: 100%;
+      overflow-x: hidden;
+    }
+
+    .back-button {
+      display: inline-block;
+      margin-bottom: 1rem;
+      padding: 0.4rem 0.8rem;
+      background-color: #f0f0f0;
+      border: 1px solid #ccc;
+      color: #333333;
+      text-decoration: none;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    .back-button:hover {
+      background-color: #e0e0e0;
+    }
+
+    .article-title {
+      font-size: 1.25rem;
+      font-weight: bold;
+      margin-bottom: 0.5rem;
+      line-height: 1.4;
+      word-break: break-word;
+    }
+
+    .article-meta {
+      color: #666666;
+      font-size: 0.85rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .article-subhead {
+      font-size: 1.05rem;
+      font-weight: bold;
+      margin-top: 1.2rem;
+      margin-bottom: 0.5rem;
+      border-left: 3px solid #0000cc;
+      padding-left: 0.5rem;
+      word-break: break-word;
+    }
+
+    /* 本文全体の改行保持スタイル */
+    .article-body-wrapper,
+    #detail-content p,
+    .article-text {
+      white-space: pre-wrap !important;
+      word-break: break-word;
+      line-height: 1.7;
+      margin-bottom: 1rem;
+    }
+
+    /* 記事内のレスポンシブ設定 */
+    #detail-content img,
+    .article-img,
+    #detail-content picture,
+    #detail-content figure {
+      max-width: 100% !important;
+      height: auto !important;
+      display: block;
+      margin: 0.8rem auto;
+      object-fit: contain;
+    }
+
+    #detail-content div,
+    #detail-content article,
+    #detail-content section {
+      max-width: 100% !important;
+      box-sizing: border-box;
+      word-break: break-word;
+    }
+
+    #detail-content [style*="width"] {
+      max-width: 100% !important;
+    }
+
+    .loading-text {
+      color: #666666;
+      font-style: italic;
+    }
+
+    /* ページ最下部のエラー・ソースコード表示エリア */
+    #error-container {
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid #ccc;
+      display: none;
+    }
+
+    .error-text {
+      color: #cc0000;
+      font-weight: bold;
+      margin-bottom: 0.5rem;
+    }
+
+    .source-btn {
+      padding: 0.3rem 0.6rem;
+      background-color: #f0f0f0;
+      border: 1px solid #ccc;
+      color: #333333;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .source-btn:hover {
+      background-color: #e0e0e0;
+    }
+
+    #raw-source-area {
+      display: none;
+      margin-top: 0.8rem;
+      width: 100%;
+      height: 300px;
+      font-family: monospace;
+      font-size: 0.8rem;
+      white-space: pre-wrap;
+      word-break: break-all;
+      overflow-y: scroll;
+      background: #f8f8f8;
+      border: 1px solid #ccc;
+      padding: 0.5rem;
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 地震緊急情報表示エリア -->
+  <div id="earthquake-alert">
+    <div class="eq-title">
+      <span>⚠️ 緊急地震情報</span>
+      <span id="eq-time"></span>
+    </div>
+    <div class="eq-detail" id="eq-detail-text"></div>
+  </div>
+
+  <!-- ニュース一覧ビュー -->
+  <div id="list-view">
+    <ul id="news-list" class="news-list"></ul>
+  </div>
+
+  <!-- ニュース詳細ビュー -->
+  <div id="detail-view">
+    <button class="back-button" onclick="showListView()">← 一覧に戻る</button>
+    <div id="detail-content"></div>
+  </div>
+
+  <!-- ページ最下部のエラー・ソースコード表示エリア -->
+  <div id="error-container">
+    <div id="error-message" class="error-text"></div>
+    <button id="show-source-btn" class="source-btn" onclick="toggleRawSource()" style="display:none;">ソースコードを表示</button>
+    <textarea id="raw-source-area" readonly></textarea>
+  </div>
+
+  <script>
+    const PROXY_BASE_URL = 'https://proxy.cors.sh/';
+    const TOP_NEWS_URL = PROXY_BASE_URL + 'https://news.yahoo.co.jp/';
+    const EARTHQUAKE_URL = PROXY_BASE_URL + 'https://typhoon.yahoo.co.jp/weather/jp/earthquake/list/';
+    const UPDATE_INTERVAL = 1000;
+
+    const eqAlertEl = document.getElementById('earthquake-alert');
+    const eqTimeEl = document.getElementById('eq-time');
+    const eqDetailTextEl = document.getElementById('eq-detail-text');
+
+    const errorContainerEl = document.getElementById('error-container');
+    const errorMessageEl = document.getElementById('error-message');
+    const showSourceBtnEl = document.getElementById('show-source-btn');
+    const rawSourceAreaEl = document.getElementById('raw-source-area');
+
+    const newsListEl = document.getElementById('news-list');
+    const listViewEl = document.getElementById('list-view');
+    const detailViewEl = document.getElementById('detail-view');
+    const detailContentEl = document.getElementById('detail-content');
+
+    let currentNewsHash = '';
+    let isDetailActive = false;
+
+    function showError(message, rawHtml = '') {
+      errorMessageEl.textContent = message;
+      errorContainerEl.style.display = 'block';
+
+      if (rawHtml) {
+        rawSourceAreaEl.value = rawHtml;
+        showSourceBtnEl.style.display = 'inline-block';
+      } else {
+        showSourceBtnEl.style.display = 'none';
+        rawSourceAreaEl.style.display = 'none';
+      }
+    }
+
+    function hideError() {
+      errorContainerEl.style.display = 'none';
+      errorMessageEl.textContent = '';
+      rawSourceAreaEl.value = '';
+      rawSourceAreaEl.style.display = 'none';
+      showSourceBtnEl.style.display = 'none';
+      showSourceBtnEl.textContent = 'ソースコードを表示';
+    }
+
+    function toggleRawSource() {
+      if (rawSourceAreaEl.style.display === 'none' || !rawSourceAreaEl.style.display) {
+        rawSourceAreaEl.style.display = 'block';
+        showSourceBtnEl.textContent = 'ソースコードを隠す';
+      } else {
+        rawSourceAreaEl.style.display = 'none';
+        showSourceBtnEl.textContent = 'ソースコードを表示';
+      }
+    }
+
+    function showListView() {
+      isDetailActive = false;
+      detailViewEl.style.display = 'none';
+      listViewEl.style.display = 'block';
+      hideError();
+    }
+
+    function showDetailView() {
+      isDetailActive = true;
+      listViewEl.style.display = 'none';
+      detailViewEl.style.display = 'block';
+      detailContentEl.innerHTML = '<p class="loading-text">記事を読み込み中...</p>';
+      hideError();
+    }
+
+    // --- 地震情報の取得と判定処理 ---
+    function fetchEarthquakeInfo() {
+      fetch(EARTHQUAKE_URL)
+        .then(response => {
+          if (!response.ok) return null;
+          return response.text();
+        })
+        .then(html => {
+          if (!html) return;
+          parseAndCheckEarthquake(html);
+        })
+        .catch(() => {
+          // 地震情報の非非同期取得失敗時は静かにスルー
+        });
+    }
+
+    function parseAndCheckEarthquake(htmlText) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlText, 'text/html');
+      const eqItems = doc.querySelectorAll('#eqhist .listRowlink ul li');
+
+      const now = new Date();
+      let alertEq = null;
+
+      for (const item of eqItems) {
+        const timeText = item.querySelector('.subText')?.textContent || '';
+        const titleText = item.querySelector('.title')?.textContent || '';
+        const scaleText = item.querySelector('.eqScale')?.textContent || '';
+
+        // 日時抽出 ("発生時刻： 2026年7月22日 10時55分")
+        const dateMatch = timeText.match(/(\d{4})年(\d{1,2})月(\d{1,2})日\s*(\d{1,2})時(\d{1,2})分/);
+        if (!dateMatch) continue;
+
+        const eqDate = new Date(
+          parseInt(dateMatch[1]),
+          parseInt(dateMatch[2]) - 1,
+          parseInt(dateMatch[3]),
+          parseInt(dateMatch[4]),
+          parseInt(dateMatch[5])
+        );
+
+        const diffHours = (now - eqDate) / (1000 * 60 * 60); // 経過時間（時間単位）
+        if (diffHours < 0) continue; // 未来日時の異常値除外
+
+        // 震度抽出 ("最大震度： 4", "5弱", "6強" など)
+        const intensityMatch = scaleText.match(/最大震度：\s*([1-7][弱強]?)/);
+        if (!intensityMatch) continue;
+
+        const intensity = intensityMatch[1];
+        let thresholdHours = 0;
+
+        // 条件判定
+        if (intensity === '4') {
+          thresholdHours = 1;
+        } else if (intensity === '5弱' || intensity === '5強') {
+          thresholdHours = 3;
+        } else if (intensity === '6弱' || intensity === '6強') {
+          thresholdHours = 6;
+        } else if (intensity === '7') {
+          thresholdHours = 24;
+        }
+
+        // 条件に該当する最新の地震を発見
+        if (thresholdHours > 0 && diffHours <= thresholdHours) {
+          alertEq = {
+            timeStr: `${dateMatch[2]}/${dateMatch[3]} ${dateMatch[4]}:${dateMatch[5]}`,
+            title: titleText.replace('震源地：', '').trim(),
+            scaleText: scaleText.replace(/\s+/g, ' ').trim()
+          };
+          break; // 最新（最上部）の該当地震を優先
+        }
+      }
+
+      if (alertEq) {
+        eqTimeEl.textContent = alertEq.timeStr;
+        eqDetailTextEl.textContent = `【震源地】${alertEq.title} （${alertEq.scaleText}）`;
+        eqAlertEl.style.display = 'block';
+      } else {
+        eqAlertEl.style.display = 'none';
+      }
+    }
+
+    // --- トップニュース一覧パース ---
+    function parseYahooTopNews(htmlText) {
+      const articles = [];
+
+      const stateMatch = htmlText.match(/window\.__PRELOADED_STATE__\s*=\s*(\{.*?\}\s*);</s);
+      if (stateMatch && stateMatch[1]) {
+        try {
+          const stateData = JSON.parse(stateMatch[1]);
+          const topics = stateData?.topicsList?.categories?.[0]?.topicsList;
+          if (Array.isArray(topics) && topics.length > 0) {
+            topics.forEach(item => {
+              articles.push({
+                title: item.title,
+                url: item.url,
+                thumb: item.resizedThumbUrl?.webp || item.resizedThumbUrl?.jpeg || item.thumbUrl || '',
+                time: item.publishedTimeAgo || item.publishedTime?.time || ''
+              });
+            });
+            return articles;
+          }
+        } catch (e) {
+          // フォールバックへ
+        }
+      }
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlText, 'text/html');
+      const topicNodes = doc.querySelectorAll('#js-ual-topics-major li, .sc-1hvtvon-8');
+
+      topicNodes.forEach(node => {
+        const anchor = node.querySelector('a');
+        const titleNode = node.querySelector('.gkSMUU, p');
+        const imgNode = node.querySelector('img');
+        const timeNode = node.querySelector('time');
+
+        if (anchor && titleNode) {
+          articles.push({
+            title: titleNode.textContent.trim(),
+            url: anchor.href,
+            thumb: imgNode ? imgNode.src : '',
+            time: timeNode ? timeNode.textContent.trim() : ''
+          });
+        }
+      });
+
+      return articles;
+    }
+
+    function renderArticles(articles) {
+      const hash = JSON.stringify(articles);
+      if (hash === currentNewsHash) return;
+      currentNewsHash = hash;
+
+      newsListEl.innerHTML = '';
+
+      articles.forEach(item => {
+        const li = document.createElement('li');
+        li.className = 'news-item';
+
+        li.addEventListener('click', () => {
+          openArticleDetail(item.url);
+        });
+
+        if (item.thumb) {
+          const img = document.createElement('img');
+          img.className = 'news-thumb';
+          img.src = item.thumb;
+          img.alt = '';
+          img.loading = 'lazy';
+          li.appendChild(img);
+        }
+
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'news-content';
+
+        const titleDiv = document.createElement('div');
+        titleDiv.className = 'news-title';
+        titleDiv.textContent = item.title;
+
+        contentDiv.appendChild(titleDiv);
+
+        if (item.time) {
+          const timeDiv = document.createElement('div');
+          timeDiv.className = 'news-time';
+          timeDiv.textContent = item.time;
+          contentDiv.appendChild(timeDiv);
+        }
+
+        li.appendChild(contentDiv);
+        newsListEl.appendChild(li);
+      });
+    }
+
+    function fetchTopNews() {
+      if (!isDetailActive) {
+        fetch(TOP_NEWS_URL)
+          .then(response => {
+            if (!response.ok) throw new Error('FETCH_ERROR');
+            return response.text();
+          })
+          .then(html => {
+            const articles = parseYahooTopNews(html);
+            if (articles && articles.length > 0) {
+              renderArticles(articles);
+              hideError();
+            } else {
+              showError('抽出失敗', html);
+            }
+          })
+          .catch(error => {
+            if (error.message === 'FETCH_ERROR' || error.name === 'TypeError') {
+              showError('取得失敗');
+            } else {
+              showError('抽出失敗');
+            }
+          });
+      }
+
+      // 地震情報の並行チェック
+      fetchEarthquakeInfo();
+    }
+
+    // --- Pickupページから記事本文URLを取得 ---
+    function openArticleDetail(pickupUrl) {
+      showDetailView();
+
+      const proxiedPickupUrl = PROXY_BASE_URL + pickupUrl;
+
+      fetch(proxiedPickupUrl)
+        .then(response => {
+          if (!response.ok) throw new Error('FETCH_ERROR');
+          return response.text();
+        })
+        .then(pickupHtml => {
+          const fullArticleUrl = extractFullArticleUrl(pickupHtml);
+
+          if (fullArticleUrl) {
+            fetchArticleBody(fullArticleUrl);
+          } else {
+            detailContentEl.innerHTML = '<p style="color:red;">記事本文URLの抽出に失敗しました。</p>';
+            showError('抽出失敗', pickupHtml);
+          }
+        })
+        .catch(() => {
+          detailContentEl.innerHTML = '<p style="color:red;">要約ページの取得に失敗しました。</p>';
+          showError('取得失敗');
+        });
+    }
+
+    function extractFullArticleUrl(htmlText) {
+      const stateMatch = htmlText.match(/window\.__PRELOADED_STATE__\s*=\s*(\{.*?\}\s*);</s);
+      if (stateMatch && stateMatch[1]) {
+        try {
+          const stateData = JSON.parse(stateMatch[1]);
+          const articleUrl = stateData?.topicsDetail?.article?.url || stateData?.pageData?.pageParam?.targurl;
+          if (articleUrl) return articleUrl;
+        } catch (e) {
+          // DOMパースへ
+        }
+      }
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlText, 'text/html');
+      
+      const readMoreAnchor = doc.querySelector('#uamods-readmore a, a.kcXeow, a[data-cl-params*="headline"]');
+      if (readMoreAnchor && readMoreAnchor.href) {
+        return readMoreAnchor.href;
+      }
+
+      const articleMatch = htmlText.match(/https:\/\/news\.yahoo\.co\.jp\/articles\/[a-f0-9]+/);
+      if (articleMatch) {
+        return articleMatch[0];
+      }
+
+      return null;
+    }
+
+    // --- 記事本文ページを取得して描画 ---
+    function fetchArticleBody(articleUrl) {
+      const proxiedArticleUrl = PROXY_BASE_URL + articleUrl;
+
+      fetch(proxiedArticleUrl)
+        .then(response => {
+          if (!response.ok) throw new Error('FETCH_ERROR');
+          return response.text();
+        })
+        .then(articleHtml => {
+          const success = parseAndRenderArticleDetail(articleHtml);
+          if (!success) {
+            showError('抽出失敗', articleHtml);
+          }
+        })
+        .catch(() => {
+          detailContentEl.innerHTML = '<p style="color:red;">記事本文の取得に失敗しました。</p>';
+          showError('取得失敗');
+        });
+    }
+
+    function parseAndRenderArticleDetail(htmlText) {
+      const stateMatch = htmlText.match(/window\.__PRELOADED_STATE__\s*=\s*(\{.*?\}\s*);</s);
+      if (stateMatch && stateMatch[1]) {
+        try {
+          const stateData = JSON.parse(stateMatch[1]);
+          const detail = stateData?.articleDetail;
+
+          if (detail) {
+            renderDetailFromData(detail);
+            return true;
+          }
+        } catch (e) {
+          // DOMフォールバックへ
+        }
+      }
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlText, 'text/html');
+
+      const headline = doc.querySelector('h1, .jbmSST')?.textContent.trim();
+      const timeStr = doc.querySelector('time')?.textContent.trim() || '';
+      const mediaName = doc.querySelector('.bPGDJZ, .grpPCu')?.textContent.trim() || '';
+
+      const bodyNode = doc.querySelector('.article_body') || doc.querySelector('#uamods');
+
+      if (headline && bodyNode) {
+        bodyNode.querySelectorAll('script, style, #yads_30982_1040846, .sc-161iguy-0, iframe, nav, footer, header').forEach(el => el.remove());
+        
+        bodyNode.querySelectorAll('*').forEach(el => {
+          el.style.width = '';
+          el.style.maxWidth = '100%';
+        });
+
+        detailContentEl.innerHTML = `
+          <div class="article-title">${headline}</div>
+          <div class="article-meta">${timeStr} ${mediaName}</div>
+          <div class="article-body-wrapper">${bodyNode.innerHTML}</div>
+        `;
+        return true;
+      }
+
+      detailContentEl.innerHTML = '<p style="color:red;">本文の抽出に失敗しました。</p>';
+      return false;
+    }
+
+    function renderDetailFromData(detail) {
+      const headline = detail.headline || '';
+      const pubDate = detail.createDate?.date ? `${detail.createDate.date} ${detail.createDate.time || ''}` : '';
+      const mediaName = detail.media?.mediaName || '';
+
+      let paragraphsHtml = '';
+
+      if (Array.isArray(detail.paragraphs)) {
+        detail.paragraphs.forEach(para => {
+          if (para.head) {
+            paragraphsHtml += `<div class="article-subhead">${para.head}</div>`;
+          }
+
+          if (Array.isArray(para.objectItems)) {
+            para.objectItems.forEach(item => {
+              const imgUrl = item.resizedViewUrl?.jpeg || item.resizedThumbUrl?.jpeg || item.thumb?.uri;
+              if (imgUrl) {
+                paragraphsHtml += `<img class="article-img" src="${imgUrl}" alt="${item.alt || ''}">`;
+              }
+            });
+          }
+
+          if (Array.isArray(para.textDetails)) {
+            para.textDetails.forEach(textObj => {
+              if (textObj.text) {
+                const formattedText = textObj.text.replace(/\n/g, '<br>');
+                paragraphsHtml += `<div class="article-text">${formattedText}</div>`;
+              }
+            });
+          }
+        });
+      }
+
+      detailContentEl.innerHTML = `
+        <div class="article-title">${headline}</div>
+        <div class="article-meta">${pubDate} ${mediaName ? '（' + mediaName + '）' : ''}</div>
+        <div class="article-body-wrapper">${paragraphsHtml}</div>
+      `;
+    }
+
+    // 1秒周期で非同期更新
+    setInterval(fetchTopNews, UPDATE_INTERVAL);
+
+    // 初回実行
+    fetchTopNews();
+  </script>
+</body>
+</html>
