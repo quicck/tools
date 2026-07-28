@@ -69,7 +69,7 @@
 
         .search-container {
             width: 100%;
-            max-width: 680px;
+            max-width: 1200px;
         }
 
         .search-field {
@@ -94,10 +94,10 @@
 
         .container {
             flex: 1;
-            max-width: 860px;
+            max-width: 1400px;
             width: 100%;
             margin: 0 auto;
-            padding: 24px 16px;
+            padding: 24px 20px;
         }
 
         .entry-title {
@@ -207,9 +207,10 @@
             margin-bottom: 8px;
         }
 
+        /* 大画面（PC・タブレット）向けの拡張レスポンシブ */
         @media (min-width: 640px) {
             .header {
-                padding: 20px 24px;
+                padding: 20px 40px;
             }
 
             .header-title {
@@ -217,20 +218,30 @@
             }
 
             .search-field {
-                padding: 16px 28px;
+                padding: 16px 32px;
                 font-size: 1.25rem;
             }
 
             .container {
-                padding: 40px 24px;
+                padding: 40px 48px;
             }
 
             .entry-title {
-                font-size: 3rem;
+                font-size: 3.2rem;
             }
 
             .item-body {
-                font-size: 1.1rem;
+                font-size: 1.15rem;
+            }
+        }
+
+        @media (min-width: 1280px) {
+            .header {
+                padding: 24px 64px;
+            }
+
+            .container {
+                padding: 48px 80px;
             }
         }
     </style>
