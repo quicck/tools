@@ -207,7 +207,6 @@
             margin-bottom: 8px;
         }
 
-        /* 大画面（PC・タブレット）向けの拡張レスポンシブ */
         @media (min-width: 640px) {
             .header {
                 padding: 20px 40px;
@@ -261,8 +260,16 @@
         const searchInput = document.getElementById('searchInput');
         const container = document.getElementById('container');
 
-        let lastFetchedHtml = '';
+        let currentSearchSession = 0;
         let lastQuery = '';
+        let loadedPages = new Set();
+        let maxPages = 1;
+        let isFetchingNext = false;
+        let shouldResetScroll = false;
+
+        searchInput.addEventListener('input', () => {
+            shouldResetScroll = true;
+        });
 
         function updateData() {
             const query = searchInput.value.trim();
@@ -271,14 +278,26 @@
                 if (lastQuery !== '') {
                     container.innerHTML = '';
                     lastQuery = '';
-                    lastFetchedHtml = '';
+                    loadedPages.clear();
+                    currentSearchSession++;
                 }
                 return;
             }
 
-            lastQuery = query;
+            // クエリが変わった場合は新しい検索セッションを開始
+            if (query !== lastQuery) {
+                lastQuery = query;
+                currentSearchSession++;
+                loadedPages.clear();
+                maxPages = 1;
+                isFetchingNext = false;
+                fetchFirstPage(query, currentSearchSession);
+            }
+        }
 
-            const targetUrl = `https://eow.alc.co.jp/search?q=${encodeURIComponent(query)}`;
+        // 1ページ目の取得とメイン表示の構築
+        function fetchFirstPage(query, sessionId) {
+            const targetUrl = `https://eow.alc.co.jp/search?q=${encodeURIComponent(query)}&pg=1`;
             const proxyUrl = `https://proxy.cors.sh/${targetUrl}`;
 
             fetch(proxyUrl)
@@ -287,12 +306,171 @@
                     return res.text();
                 })
                 .then(html => {
-                    if (searchInput.value.trim() === query && html !== lastFetchedHtml) {
-                        lastFetchedHtml = html;
-                        renderContent(html, query);
+                    if (sessionId !== currentSearchSession) return;
+
+                    loadedPages.add(1);
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const resultsArea = doc.getElementById('resultsArea');
+
+                    if (!resultsArea) {
+                        container.innerHTML = '';
+                        return;
                     }
+
+                    // 最大ページ数の検出
+                    maxPages = extractMaxPages(doc);
+
+                    // 件数
+                    let countText = '';
+                    const table = resultsArea.querySelector('.search-word-table');
+                    if (table) {
+                        const td = table.querySelector('td');
+                        if (td) countText = td.textContent.replace(/検索結果一覧を見る.*/g, '').trim();
+                    }
+
+                    // 変化形
+                    let variantText = '';
+                    const variantTr = resultsArea.querySelector('tr.variant');
+                    if (variantTr) variantText = variantTr.textContent.replace(/\s+/g, ' ').trim();
+
+                    // メインの意味
+                    let mainHtml = '';
+                    const useList = resultsArea.querySelector('.search-use-list');
+                    if (useList) {
+                        const items = useList.querySelectorAll('li.result-item');
+                        items.forEach(item => {
+                            const tango = item.querySelector('.tango');
+                            if (tango) tango.remove();
+                            const midashi = item.querySelector('.midashi');
+                            if (midashi) midashi.remove();
+
+                            const formattedBody = formatResultContent(item.innerHTML);
+                            mainHtml += `<div class="item-row"><div class="item-body">${formattedBody}</div></div>`;
+                        });
+                    }
+
+                    // 例文・フレーズ一覧 (1ページ目)
+                    let phraseHtml = '';
+                    let sectionTitleText = '';
+                    const sentenceList = resultsArea.querySelector('.search-sentence-list');
+                    if (sentenceList) {
+                        const sentenceTtl = resultsArea.querySelector('#search-sentence-ttl');
+                        if (sentenceTtl) sectionTitleText = sentenceTtl.textContent.replace(/\s+/g, ' ').trim();
+
+                        const items = sentenceList.querySelectorAll('li.result-item');
+                        items.forEach(item => {
+                            phraseHtml += createPhraseItemHtml(item);
+                        });
+                    }
+
+                    if (shouldResetScroll) {
+                        window.scrollTo(0, 0);
+                        shouldResetScroll = false;
+                    }
+
+                    container.innerHTML = `
+                        <div class="entry-title">${escapeHtml(query)}</div>
+                        ${countText ? `<div class="entry-count">${escapeHtml(countText)}</div>` : ''}
+                        ${variantText ? `<div class="entry-variant">${escapeHtml(variantText)}</div>` : ''}
+                        
+                        ${mainHtml ? `<div class="section-block">${mainHtml}</div>` : ''}
+                        
+                        <div class="section-block" id="phraseSection" ${!phraseHtml ? 'style="display:none;"' : ''}>
+                            ${sectionTitleText ? `<div class="section-title">${escapeHtml(sectionTitleText)}</div>` : ''}
+                            <div id="phraseListContainer">${phraseHtml}</div>
+                        </div>
+                    `;
+
+                    // 2ページ目以降の全自動バックグラウンド取得を開始
+                    triggerBackgroundFetch(query, sessionId, 2);
                 })
                 .catch(() => {});
+        }
+
+        // バックグラウンドで順次次のページを取得して末尾に追加
+        function triggerBackgroundFetch(query, sessionId, page) {
+            if (page > maxPages || sessionId !== currentSearchSession || loadedPages.has(page) || isFetchingNext) {
+                return;
+            }
+
+            isFetchingNext = true;
+            const targetUrl = `https://eow.alc.co.jp/search?q=${encodeURIComponent(query)}&pg=${page}`;
+            const proxyUrl = `https://proxy.cors.sh/${targetUrl}`;
+
+            fetch(proxyUrl)
+                .then(res => {
+                    if (!res.ok) throw new Error();
+                    return res.text();
+                })
+                .then(html => {
+                    isFetchingNext = false;
+                    if (sessionId !== currentSearchSession) return;
+
+                    loadedPages.add(page);
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const sentenceList = doc.querySelector('.search-sentence-list');
+                    
+                    if (sentenceList) {
+                        const items = sentenceList.querySelectorAll('li.result-item');
+                        const phraseListContainer = document.getElementById('phraseListContainer');
+                        const phraseSection = document.getElementById('phraseSection');
+
+                        if (phraseListContainer && items.length > 0) {
+                            if (phraseSection) phraseSection.style.display = 'block';
+
+                            let appendedHtml = '';
+                            items.forEach(item => {
+                                appendedHtml += createPhraseItemHtml(item);
+                            });
+
+                            phraseListContainer.insertAdjacentHTML('beforeend', appendedHtml);
+                        }
+                    }
+
+                    // 次のページを即座に連鎖読み込み
+                    if (page + 1 <= maxPages) {
+                        setTimeout(() => {
+                            triggerBackgroundFetch(query, sessionId, page + 1);
+                        }, 200); // サーバー負荷軽減とスムーズな処理のためわずかなディレイ
+                    }
+                })
+                .catch(() => {
+                    isFetchingNext = false;
+                });
+        }
+
+        // 例文項目の単一HTML生成
+        function createPhraseItemHtml(item) {
+            const midashi = item.querySelector('.midashi');
+            const headText = midashi ? midashi.textContent.trim() : '';
+
+            const tango = item.querySelector('.tango');
+            if (tango) tango.remove();
+            if (midashi) midashi.remove();
+
+            const formattedBody = formatResultContent(item.innerHTML.trim());
+
+            return `
+                <div class="item-row">
+                    ${headText ? `<div class="item-head">${escapeHtml(headText)}</div>` : ''}
+                    <div class="item-body">${formattedBody}</div>
+                </div>
+            `;
+        }
+
+        // HTMLから最大ページ数を特定
+        function extractMaxPages(doc) {
+            let max = 1;
+            const pageLinks = doc.querySelectorAll('#paging .page-num a, #inner_paging .page-num a');
+            pageLinks.forEach(link => {
+                const num = parseInt(link.textContent.trim(), 10);
+                if (!isNaN(num) && num > max) {
+                    max = num;
+                }
+            });
+            return max;
         }
 
         function convertToRuby(htmlString) {
@@ -302,83 +480,10 @@
             });
         }
 
-        function renderContent(htmlText, query) {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(htmlText, 'text/html');
-            const resultsArea = doc.getElementById('resultsArea');
-
-            if (!resultsArea) {
-                container.innerHTML = '';
-                return;
-            }
-
-            let countText = '';
-            const table = resultsArea.querySelector('.search-word-table');
-            if (table) {
-                const td = table.querySelector('td');
-                if (td) countText = td.textContent.replace(/検索結果一覧を見る.*/g, '').trim();
-            }
-
-            let variantText = '';
-            const variantTr = resultsArea.querySelector('tr.variant');
-            if (variantTr) variantText = variantTr.textContent.replace(/\s+/g, ' ').trim();
-
-            let mainHtml = '';
-            const useList = resultsArea.querySelector('.search-use-list');
-            if (useList) {
-                const items = useList.querySelectorAll('li.result-item');
-                items.forEach(item => {
-                    const tango = item.querySelector('.tango');
-                    if (tango) tango.remove();
-                    const midashi = item.querySelector('.midashi');
-                    if (midashi) midashi.remove();
-
-                    const formattedBody = convertToRuby(item.innerHTML);
-                    mainHtml += `<div class="item-row"><div class="item-body">${formattedBody}</div></div>`;
-                });
-            }
-
-            let phraseHtml = '';
-            let sectionTitleText = '';
-            const sentenceList = resultsArea.querySelector('.search-sentence-list');
-            if (sentenceList) {
-                const sentenceTtl = resultsArea.querySelector('#search-sentence-ttl');
-                if (sentenceTtl) sectionTitleText = sentenceTtl.textContent.replace(/\s+/g, ' ').trim();
-
-                const items = sentenceList.querySelectorAll('li.result-item');
-                items.forEach(item => {
-                    const midashi = item.querySelector('.midashi');
-                    const headText = midashi ? midashi.textContent.trim() : '';
-
-                    const tango = item.querySelector('.tango');
-                    if (tango) tango.remove();
-                    if (midashi) midashi.remove();
-
-                    const formattedBody = convertToRuby(item.innerHTML.trim());
-
-                    phraseHtml += `
-                        <div class="item-row">
-                            ${headText ? `<div class="item-head">${escapeHtml(headText)}</div>` : ''}
-                            <div class="item-body">${formattedBody}</div>
-                        </div>
-                    `;
-                });
-            }
-
-            container.innerHTML = `
-                <div class="entry-title">${escapeHtml(query)}</div>
-                ${countText ? `<div class="entry-count">${escapeHtml(countText)}</div>` : ''}
-                ${variantText ? `<div class="entry-variant">${escapeHtml(variantText)}</div>` : ''}
-                
-                ${mainHtml ? `<div class="section-block">${mainHtml}</div>` : ''}
-                
-                ${phraseHtml ? `
-                    <div class="section-block">
-                        ${sectionTitleText ? `<div class="section-title">${escapeHtml(sectionTitleText)}</div>` : ''}
-                        ${phraseHtml}
-                    </div>
-                ` : ''}
-            `;
+        function formatResultContent(rawHtml) {
+            let processed = convertToRuby(rawHtml);
+            processed = processed.replace(/【＠】|【@】/g, '【カナ】');
+            return processed;
         }
 
         function escapeHtml(str) {
