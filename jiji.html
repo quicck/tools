@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>時事通信ニュース</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+    </style>
+</head>
+<body class="bg-[#f8f9fa] text-[#191c1e] min-h-screen flex flex-col font-sans selection:bg-[#c2e7ff] selection:text-[#001d35]">
+    <header class="sticky top-0 z-50 bg-[#f8f9fa]/80 backdrop-blur-md border-b border-[#e0e2e5] px-4 py-4 flex items-center justify-between">
+        <div class="max-w-3xl w-full mx-auto flex items-center justify-between">
+            <h1 id="header-title" class="text-xl font-medium tracking-tight text-[#191c1e] cursor-pointer" onclick="backToList()">
+                時事通信ニュース
+            </h1>
+            <button id="back-btn" class="hidden text-sm text-[#191c1e] font-medium hover:opacity-70 transition-opacity" onclick="backToList()">
+                ← 一覧に戻る
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-3xl w-full mx-auto px-4 py-6 space-y-6">
+        <!-- 過去1時間以内の速報表示エリア -->
+        <div id="latest-flash-container"></div>
+
+        <div id="news-container" class="space-y-8">
+            <div class="space-y-4">
+                <div class="h-6 w-32 bg-[#e3e2e6]/60 rounded animate-pulse"></div>
+                <div class="h-20 bg-[#e3e2e6]/40 rounded-xl animate-pulse"></div>
+                <div class="h-20 bg-[#e3e2e6]/40 rounded-xl animate-pulse"></div>
+            </div>
+        </div>
+        
+        <div id="article-detail" class="hidden space-y-6 animate-fade-in">
+            <!-- 記事詳細 -->
+        </div>
+    </main>
+
+    <script>
+        const PROXY_URL = 'https://proxy.cors.sh/';
+        const TOP_URL = 'https://www.jiji.com/sp/';
+        const FLASH_URL = 'https://www.jiji.com/sp/list?g=flash';
+        
+        let previousHtml = '';
+        let currentView = 'list';
+        let scrollPosition = 0;
+        let lastFlashText = ''; // 前回の速報内容を保持して不要な再描画を防ぐ
+
+        async function fetchAllData() {
+            if (currentView !== 'list') return;
+            try {
+                const [topRes, flashRes] = await Promise.all([
+                    fetch(PROXY_URL + TOP_URL, { headers: { 'x-cors-gratis-api-key': 'temp' } }),
+                    fetch(PROXY_URL + FLASH_URL, { headers: { 'x-cors-gratis-api-key': 'temp' } })
+                ]);
+
+                if (!topRes.ok) throw new Error('トップページ取得エラー');
+                const topHtml = await topRes.text();
+                
+                if (topHtml !== previousHtml) {
+                    previousHtml = topHtml;
+                    parseAndRenderNews(topHtml);
+                }
+
+                if (flashRes.ok) {
+                    const flashHtml = await flashRes.text();
+                    checkLatestFlash(flashHtml);
+                }
+            } catch (error) {
+                console.error('取得エラー:', error);
+            }
+        }
+
+        function checkLatestFlash(html) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const flashItems = doc.querySelectorAll('.TopNews .ArticleHeadlineList li');
+            
+            const now = new Date();
+            let newestFlash = null;
+            let minDiffMs = Infinity;
+
+            flashItems.forEach(item => {
+                const textEl = item.querySelector('p');
+                const dateEl = item.querySelector('.ArticleDate');
+                if (!textEl || !dateEl) return;
+
+                const dateStr = dateEl.textContent.trim();
+                const match = dateStr.match(/\((\d{2})\/(\d{2})\s+(\d{2}):(\d{2})\)/);
+                if (!match) return;
+
+                const [, month, day, hour, minute] = match;
+                const articleDate = new Date(now.getFullYear(), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute));
+
+                if (articleDate > now) {
+                    articleDate.setFullYear(now.getFullYear() - 1);
+                }
+
+                const diffMs = now - articleDate;
+                const oneHourMs = 60 * 60 * 1000;
+
+                if (diffMs >= 0 && diffMs <= oneHourMs && diffMs < minDiffMs) {
+                    minDiffMs = diffMs;
+                    newestFlash = {
+                        text: textEl.textContent.trim(),
+                        date: dateStr
+                    };
+                }
+            });
+
+            const container = document.getElementById('latest-flash-container');
+            const newText = newestFlash ? newestFlash.text : '';
+
+            // 速報の内容に変更がない場合は再描画（点滅）させない
+            if (newText === lastFlashText) return;
+            lastFlashText = newText;
+
+            if (newestFlash) {
+                container.innerHTML = `
+                    <div class="bg-[#f0f4f8] border-l-4 border-[#0061a4] p-4 rounded-r-xl select-none">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="inline-block w-2 h-2 rounded-full bg-[#0061a4]"></span>
+                            <span class="text-xs font-bold text-[#0061a4] tracking-wider uppercase">速報</span>
+                            <span class="text-xs text-[#44474f] font-mono ml-auto">${newestFlash.date}</span>
+                        </div>
+                        <p class="text-sm sm:text-base text-[#191c1e] leading-snug">${newestFlash.text}</p>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = '';
+            }
+        }
+
+        function parseAndRenderNews(html) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            
+            const categories = [
+                { id: 'top5', name: 'トップニュース', selector: '#Newstop5 .top5new a' },
+                { id: 'main', name: '主要ニュース', selector: '.TopNews .ArticleHeadlineList li a' },
+                { id: 'int', name: '国際', selector: '.TopNews.int .ArticleHeadlineList a' },
+                { id: 'pol', name: '政治', selector: '.TopNews.pol .ArticleHeadlineList a' },
+                { id: 'eco', name: '経済', selector: '.TopNews.eco .ArticleHeadlineList a' },
+                { id: 'soc', name: '社会', selector: '.TopNews.soc .ArticleHeadlineList a' },
+                { id: 'spo', name: 'スポーツ', selector: '.TopNews.spo .ArticleHeadlineList a' },
+                { id: 'etm', name: 'エンタメ', selector: '.TopNews.etm .ArticleHeadlineList a' },
+                { id: 'obt', name: 'おくやみ', selector: '.TopNews.obt .ArticleHeadlineList a' }
+            ];
+
+            const categorizedData = [];
+            const seenUrls = new Set();
+
+            categories.forEach(cat => {
+                const items = [];
+                doc.querySelectorAll(cat.selector).forEach(el => {
+                    const href = el.getAttribute('href');
+                    const titleEl = el.querySelector('h3') || el.querySelector('p') || el.querySelector('.article_title') || el.querySelector('div');
+                    const dateEl = el.querySelector('.ArticleDate') || el.querySelector('span');
+                    const imgEl = el.querySelector('img');
+
+                    const dateText = dateEl ? dateEl.textContent.trim() : '';
+                    if (!dateText || !dateText.includes('/')) return;
+
+                    if (href && titleEl && !seenUrls.has(href + cat.id)) {
+                        seenUrls.add(href + cat.id);
+                        
+                        let imageUrl = imgEl ? (imgEl.getAttribute('src') || imgEl.getAttribute('data-src')) : null;
+                        if (imageUrl && !imageUrl.startsWith('http')) {
+                            imageUrl = 'https://www.jiji.com' + (imageUrl.startsWith('/') ? '' : '/') + imageUrl;
+                        }
+
+                        items.push({
+                            url: href.startsWith('http') ? href : 'https://www.jiji.com' + href,
+                            title: titleEl.textContent.trim(),
+                            date: dateText,
+                            image: imageUrl
+                        });
+                    }
+                });
+
+                if (items.length > 0) {
+                    categorizedData.push({ name: cat.name, items: items });
+                }
+            });
+
+            renderCategories(categorizedData);
+        }
+
+        function renderCategories(categories) {
+            const container = document.getElementById('news-container');
+            if (currentView !== 'list') return;
+
+            let htmlContent = '';
+            categories.forEach((cat, catIndex) => {
+                htmlContent += `
+                    <section class="space-y-3" style="animation-delay: ${catIndex * 40}ms">
+                        <h2 class="text-lg font-medium text-[#191c1e] border-b border-[#e0e2e5] pb-2 tracking-tight">
+                            ${cat.name}
+                        </h2>
+                        <div class="space-y-1">
+                `;
+
+                cat.items.forEach((art) => {
+                    htmlContent += `
+                        <div onclick="openArticle('${art.url}')" 
+                           class="group block py-3 px-3 rounded-xl transition-all duration-300 hover:bg-[#f1f3f4] cursor-pointer">
+                            <div class="flex gap-4 items-center">
+                                ${art.image ? `
+                                    <div class="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-[#e3e2e6]">
+                                        <img src="${art.image}" alt="" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" onerror="this.parentElement.style.display='none'">
+                                    </div>
+                                ` : ''}
+                                <div class="flex-grow min-w-0">
+                                    <h3 class="text-sm sm:text-base font-normal text-[#191c1e] group-hover:opacity-70 transition-opacity line-clamp-2 leading-snug">
+                                        ${art.title}
+                                    </h3>
+                                    ${art.date ? `<p class="text-xs text-[#44474f] mt-1 font-mono">${art.date}</p>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                htmlContent += `</div></section>`;
+            });
+
+            container.innerHTML = htmlContent;
+        }
+
+        async function openArticle(url) {
+            scrollPosition = window.scrollY;
+            currentView = 'detail';
+            document.getElementById('latest-flash-container').classList.add('hidden');
+            document.getElementById('news-container').classList.add('hidden');
+            const detailContainer = document.getElementById('article-detail');
+            detailContainer.classList.remove('hidden');
+            document.getElementById('back-btn').classList.remove('hidden');
+            window.scrollTo(0, 0);
+            
+            detailContainer.innerHTML = `
+                <div class="space-y-4 animate-pulse">
+                    <div class="h-8 bg-[#e3e2e6]/60 rounded w-3/4"></div>
+                    <div class="h-4 bg-[#e3e2e6]/40 rounded w-1/4"></div>
+                    <div class="h-64 bg-[#e3e2e6]/40 rounded-2xl w-full"></div>
+                    <div class="h-4 bg-[#e3e2e6]/40 rounded w-full"></div>
+                    <div class="h-4 bg-[#e3e2e6]/40 rounded w-full"></div>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(PROXY_URL + url, {
+                    headers: { 'x-cors-gratis-api-key': 'temp' }
+                });
+                if (!response.ok) throw new Error('記事の取得に失敗しました');
+                const htmlText = await response.text();
+                
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(htmlText, 'text/html');
+                
+                const title = doc.querySelector('article h1, .ArticleTitle h1')?.textContent || doc.querySelector('title')?.textContent.split(':')[0] || '';
+                const date = doc.querySelector('.ArticleData time, .Published time, .ArticleTitleData')?.textContent || '';
+                const author = doc.querySelector('.ArticleAuthor')?.textContent || '';
+                
+                let mediaHtml = '';
+                const figure = doc.querySelector('.ArticleFigureWrapper');
+                
+                if (figure) {
+                    figure.querySelectorAll('img').forEach(img => {
+                        let src = img.getAttribute('src');
+                        if (src && !src.startsWith('http')) {
+                            img.setAttribute('src', 'https://www.jiji.com' + (src.startsWith('/') ? '' : '/') + src);
+                        }
+                        img.removeAttribute('height');
+                        img.removeAttribute('width');
+                        img.className = 'w-full h-auto rounded-2xl object-cover my-4';
+                    });
+                    mediaHtml = figure.innerHTML;
+                }
+
+                const paragraphs = doc.querySelectorAll('.ArticleBlock .ArticleText, .MovieCaption .ArticleText');
+                let contentHtml = '';
+                
+                if (paragraphs.length > 0) {
+                    paragraphs.forEach(p => {
+                        p.querySelectorAll('a').forEach(a => {
+                            const span = document.createElement('span');
+                            span.textContent = a.textContent;
+                            a.replaceWith(span);
+                        });
+                        contentHtml += `<p class="text-base leading-relaxed text-[#191c1e] my-3">${p.innerHTML}</p>`;
+                    });
+                } else {
+                    const metaDesc = doc.querySelector('meta[name="description"]')?.getAttribute('content');
+                    if (metaDesc) {
+                        contentHtml = `<p class="text-base leading-relaxed text-[#191c1e] my-3">${metaDesc}</p>`;
+                    }
+                }
+
+                detailContainer.innerHTML = `
+                    <div class="space-y-4 animate-fade-in">
+                        <h1 class="text-xl sm:text-2xl font-normal text-[#191c1e] tracking-tight leading-snug">${title}</h1>
+                        <div class="flex items-center gap-4 text-xs text-[#44474f] font-mono border-b border-[#e0e2e5] pb-3">
+                            ${author ? `<span>${author}</span>` : ''}
+                            ${date ? `<span>${date}</span>` : ''}
+                        </div>
+                        ${mediaHtml ? `<div class="my-4">${mediaHtml}</div>` : ''}
+                        <div class="article-body space-y-4 pt-2">
+                            ${contentHtml || '<p class="text-sm text-[#44474f]">本文を取得できませんでした。</p>'}
+                        </div>
+                    </div>
+                `;
+            } catch (err) {
+                detailContainer.innerHTML = `<p class="text-sm text-red-500">記事の読み込みに失敗しました。</p>`;
+            }
+        }
+
+        function backToList() {
+            currentView = 'list';
+            document.getElementById('article-detail').classList.add('hidden');
+            document.getElementById('news-container').classList.remove('hidden');
+            document.getElementById('latest-flash-container').classList.remove('hidden');
+            document.getElementById('back-btn').classList.add('hidden');
+            window.scrollTo(0, scrollPosition);
+        }
+
+        setInterval(fetchAllData, 1000);
+        fetchAllData();
+    </script>
+</body>
+</html>
