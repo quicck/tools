@@ -1,0 +1,371 @@
+```html
+<!DOCTYPE html>
+<html lang="ja" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timer App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Roboto', 'sans-serif'],
+                    },
+                    colors: {
+                        md3: {
+                            primary: '#6750A4',
+                            onPrimary: '#FFFFFF',
+                            primaryContainer: '#EADDFF',
+                            onPrimaryContainer: '#21005D',
+                            surface: '#FEF7FF',
+                            onSurface: '#1D1B20',
+                            surfaceVariant: '#E7E0EC',
+                            onSurfaceVariant: '#49454F',
+                            error: '#B3261E',
+                            onError: '#FFFFFF',
+                            errorContainer: '#F9DEDC',
+                            onErrorContainer: '#410E0B',
+                            outline: '#79747E',
+                            outlineVariant: '#CAC4D0',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @keyframes pulse-subtle {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.03); opacity: 0.85; }
+        }
+        .animate-pulse-subtle {
+            animation: pulse-subtle 2s infinite ease-in-out;
+        }
+        @keyframes ring {
+            0% { transform: rotate(0deg); }
+            20% { transform: rotate(14deg); }
+            40% { transform: rotate(-14deg); }
+            60% { transform: rotate(10deg); }
+            80% { transform: rotate(-10deg); }
+            100% { transform: rotate(0deg); }
+        }
+        .animate-ring {
+            animation: ring 0.5s infinite ease-in-out;
+        }
+        /* Hide number input spinners */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+    </style>
+</head>
+<body class="h-full bg-md3-surface text-md3-onSurface flex flex-col justify-between select-none overflow-hidden font-sans">
+
+    <!-- メインコンテンツ -->
+    <main class="flex-1 flex flex-col items-center justify-center p-6 max-w-md mx-auto w-full">
+        
+        <!-- モード切替タブ -->
+        <div class="flex bg-md3-surfaceVariant rounded-full p-1 mb-8 w-full max-w-xs transition-all duration-300">
+            <button id="tabTimer" onclick="switchMode('timer')" class="flex-1 py-2 text-center rounded-full text-sm font-medium transition-all duration-300 bg-md3-primary text-md3-onPrimary shadow-sm">
+                タイマー
+            </button>
+            <button id="tabStopwatch" onclick="switchMode('stopwatch')" class="flex-1 py-2 text-center rounded-full text-sm font-medium transition-all duration-300 text-md3-onSurfaceVariant hover:bg-black/5">
+                ストップウォッチ
+            </button>
+        </div>
+
+        <!-- タイマー表示エリア -->
+        <div id="timerView" class="w-full flex flex-col items-center">
+            <!-- 時間入力 / 経過表示 -->
+            <div id="displayContainer" class="relative flex items-center justify-center mb-10 w-full">
+                <!-- 停止中の直接入力モード -->
+                <div id="inputModeContainer" class="flex items-center justify-center gap-1 text-5xl sm:text-6xl font-light text-md3-onSurface">
+                    <div class="flex flex-col items-center">
+                        <input type="number" id="inputHours" min="0" max="99" value="00" onchange="formatInput(this)" class="w-20 bg-transparent text-center focus:outline-none focus:bg-md3-surfaceVariant/40 rounded-xl py-1">
+                        <span class="text-[10px] text-md3-outline font-medium tracking-widest mt-1">時間</span>
+                    </div>
+                    <span class="pb-5">:</span>
+                    <div class="flex flex-col items-center">
+                        <input type="number" id="inputMinutes" min="0" max="59" value="03" onchange="formatInput(this)" class="w-20 bg-transparent text-center focus:outline-none focus:bg-md3-surfaceVariant/40 rounded-xl py-1">
+                        <span class="text-[10px] text-md3-outline font-medium tracking-widest mt-1">分</span>
+                    </div>
+                    <span class="pb-5">:</span>
+                    <div class="flex flex-col items-center">
+                        <input type="number" id="inputSeconds" min="0" max="59" value="00" onchange="formatInput(this)" class="w-20 bg-transparent text-center focus:outline-none focus:bg-md3-surfaceVariant/40 rounded-xl py-1">
+                        <span class="text-[10px] text-md3-outline font-medium tracking-widest mt-1">秒</span>
+                    </div>
+                </div>
+
+                <!-- 稼働時のテキスト表示モード -->
+                <div id="timeDisplay" class="text-6xl sm:text-7xl font-light tracking-tight text-md3-onSurface hidden">
+                    00:03:00
+                </div>
+            </div>
+
+            <!-- クイック追加ボタン群 (非稼働時のみ表示) -->
+            <div id="setupControls" class="grid grid-cols-3 gap-3 w-full max-w-xs mb-8 transition-all duration-300">
+                <button onclick="addTime(300)" class="flex flex-col items-center justify-center py-3 bg-md3-surfaceVariant hover:bg-md3-outlineVariant/30 active:scale-95 rounded-2xl transition-all text-md3-onSurfaceVariant">
+                    <span class="material-symbols-outlined text-xl mb-1">add</span>
+                    <span class="text-xs font-medium">+5分</span>
+                </button>
+                <button onclick="addTime(60)" class="flex flex-col items-center justify-center py-3 bg-md3-surfaceVariant hover:bg-md3-outlineVariant/30 active:scale-95 rounded-2xl transition-all text-md3-onSurfaceVariant">
+                    <span class="material-symbols-outlined text-xl mb-1">add</span>
+                    <span class="text-xs font-medium">+1分</span>
+                </button>
+                <button onclick="addTime(10)" class="flex flex-col items-center justify-center py-3 bg-md3-surfaceVariant hover:bg-md3-outlineVariant/30 active:scale-95 rounded-2xl transition-all text-md3-onSurfaceVariant">
+                    <span class="material-symbols-outlined text-xl mb-1">add</span>
+                    <span class="text-xs font-medium">+10秒</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- ストップウォッチ表示エリア -->
+        <div id="stopwatchView" class="w-full flex flex-col items-center hidden">
+            <div class="text-6xl sm:text-7xl font-light tracking-tight text-md3-onSurface mb-10 transition-all duration-300" id="stopwatchDisplay">
+                00:00.00
+            </div>
+        </div>
+
+        <!-- アクションボタン -->
+        <div class="flex items-center justify-center gap-4 w-full">
+            <button id="resetButton" onclick="resetAction()" class="w-14 h-14 rounded-full bg-md3-surfaceVariant text-md3-onSurfaceVariant flex items-center justify-center hover:bg-md3-outlineVariant/40 active:scale-95 transition-all shadow-sm">
+                <span class="material-symbols-outlined text-2xl">refresh</span>
+            </button>
+            <button id="mainButton" onclick="toggleAction()" class="w-20 h-20 rounded-3xl bg-md3-primary text-md3-onPrimary flex items-center justify-center hover:opacity-95 active:scale-95 transition-all shadow-md">
+                <span id="mainButtonIcon" class="material-symbols-outlined text-3xl">play_arrow</span>
+            </button>
+        </div>
+
+    </main>
+
+    <!-- アラーム全画面オーバーレイ -->
+    <div id="alarmOverlay" class="fixed inset-0 bg-md3-error text-md3-onError flex flex-col items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300 z-50">
+        <span class="material-symbols-outlined text-8xl mb-6 animate-ring">alarm</span>
+        <h2 class="text-4xl font-light tracking-wide mb-12">時間になりました</h2>
+        <button onclick="stopAlarm()" class="px-8 py-4 bg-md3-onError text-md3-error font-medium rounded-full shadow-lg active:scale-95 transition-all text-lg">
+            停止する
+        </button>
+    </div>
+
+    <script>
+        let currentMode = 'timer'; // 'timer' or 'stopwatch'
+        
+        // Timer state (内部優先処理用)
+        let timerTargetTimestamp = 0;
+        let timerTotalSeconds = 180; // デフォルト3分
+        let timerInterval = null;
+        let isTimerRunning = false;
+
+        // Stopwatch state (内部優先処理用)
+        let stopwatchStartTime = 0;
+        let stopwatchPausedElapsed = 0;
+        let stopwatchInterval = null;
+        let isStopwatchRunning = false;
+
+        // Alarm Audio context & state
+        let audioCtx = null;
+        let isAlarmActive = false;
+
+        function switchMode(mode) {
+            if (isTimerRunning || isStopwatchRunning) return;
+            currentMode = mode;
+            const timerView = document.getElementById('timerView');
+            const stopwatchView = document.getElementById('stopwatchView');
+            const tabTimer = document.getElementById('tabTimer');
+            const tabStopwatch = document.getElementById('tabStopwatch');
+            const setupControls = document.getElementById('setupControls');
+
+            if (mode === 'timer') {
+                timerView.classList.remove('hidden');
+                stopwatchView.classList.add('hidden');
+                tabTimer.className = "flex-1 py-2 text-center rounded-full text-sm font-medium transition-all duration-300 bg-md3-primary text-md3-onPrimary shadow-sm";
+                tabStopwatch.className = "flex-1 py-2 text-center rounded-full text-sm font-medium transition-all duration-300 text-md3-onSurfaceVariant hover:bg-black/5";
+                setupControls.style.display = 'grid';
+            } else {
+                timerView.classList.add('hidden');
+                stopwatchView.classList.remove('hidden');
+                tabStopwatch.className = "flex-1 py-2 text-center rounded-full text-sm font-medium transition-all duration-300 bg-md3-primary text-md3-onPrimary shadow-sm";
+                tabTimer.className = "flex-1 py-2 text-center rounded-full text-sm font-medium transition-all duration-300 text-md3-onSurfaceVariant hover:bg-black/5";
+                setupControls.style.display = 'none';
+            }
+        }
+
+        function formatInput(el) {
+            let val = parseInt(el.value, 10);
+            if (isNaN(val) || val < 0) val = 0;
+            const max = parseInt(el.max, 10);
+            if (val > max) val = max;
+            el.value = String(val).padStart(2, '0');
+            syncInputsToTotal();
+        }
+
+        function syncInputsToTotal() {
+            const h = parseInt(document.getElementById('inputHours').value, 10) || 0;
+            const m = parseInt(document.getElementById('inputMinutes').value, 10) || 0;
+            const s = parseInt(document.getElementById('inputSeconds').value, 10) || 0;
+            timerTotalSeconds = h * 3600 + m * 60 + s;
+        }
+
+        function setTotalToInputs(totalSecs) {
+            const h = Math.floor(totalSecs / 3600);
+            const m = Math.floor((totalSecs % 3600) / 60);
+            const s = totalSecs % 60;
+            document.getElementById('inputHours').value = String(h).padStart(2, '0');
+            document.getElementById('inputMinutes').value = String(m).padStart(2, '0');
+            document.getElementById('inputSeconds').value = String(s).padStart(2, '0');
+            timerTotalSeconds = totalSecs;
+        }
+
+        function addTime(seconds) {
+            if (isTimerRunning) return;
+            syncInputsToTotal();
+            let newTotal = timerTotalSeconds + seconds;
+            if (newTotal > 359999) newTotal = 359999; // 最大99時間59分59秒
+            setTotalToInputs(newTotal);
+        }
+
+        function formatTime(totalSecs) {
+            const hrs = Math.floor(totalSecs / 3600);
+            const mins = Math.floor((totalSecs % 3600) / 60);
+            const secs = totalSecs % 60;
+            return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+
+        function formatStopwatchTime(ms) {
+            const totalSecs = Math.floor(ms / 1000);
+            const mins = Math.floor(totalSecs / 60);
+            const secs = totalSecs % 60;
+            const centis = Math.floor((ms % 1000) / 10);
+            return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${String(centis).padStart(2, '0')}`;
+        }
+
+        function toggleAction() {
+            if (currentMode === 'timer') {
+                if (!isTimerRunning) {
+                    syncInputsToTotal();
+                    if (timerTotalSeconds <= 0) return;
+
+                    // 内部優先：目標終了時刻を絶対時刻として正確に計算保持する
+                    timerTargetTimestamp = Date.now() + (timerTotalSeconds * 1000);
+                    isTimerRunning = true;
+
+                    // UIの切り替え（入力フォームを隠してテキスト表示へ）
+                    document.getElementById('inputModeContainer').classList.add('hidden');
+                    document.getElementById('timeDisplay').classList.remove('hidden');
+                    document.getElementById('setupControls').style.opacity = '0';
+                    setTimeout(() => document.getElementById('setupControls').style.display = 'none', 300);
+                    document.getElementById('mainButtonIcon').innerText = 'pause';
+                    document.getElementById('displayContainer').classList.add('animate-pulse-subtle');
+
+                    // 内部優先の正確なループ監視（高頻度チェックでズレを吸収）
+                    timerInterval = setInterval(() => {
+                        const now = Date.now();
+                        const remainingMs = timerTargetTimestamp - now;
+                        const remainingSecs = Math.ceil(remainingMs / 1000);
+
+                        if (remainingSecs <= 0) {
+                            document.getElementById('timeDisplay').innerText = "00:00:00";
+                            pauseTimer();
+                            triggerAlarm();
+                            return;
+                        }
+                        document.getElementById('timeDisplay').innerText = formatTime(remainingSecs);
+                    }, 50);
+                } else {
+                    pauseTimer();
+                }
+            } else {
+                if (!isStopwatchRunning) {
+                    isStopwatchRunning = true;
+                    stopwatchStartTime = Date.now() - stopwatchPausedElapsed;
+                    document.getElementById('mainButtonIcon').innerText = 'pause';
+                    stopwatchInterval = setInterval(() => {
+                        const elapsed = Date.now() - stopwatchStartTime;
+                        document.getElementById('stopwatchDisplay').innerText = formatStopwatchTime(elapsed);
+                    }, 20);
+                } else {
+                    clearInterval(stopwatchInterval);
+                    isStopwatchRunning = false;
+                    stopwatchPausedElapsed = Date.now() - stopwatchStartTime;
+                    document.getElementById('mainButtonIcon').innerText = 'play_arrow';
+                }
+            }
+        }
+
+        function pauseTimer() {
+            clearInterval(timerInterval);
+            isTimerRunning = false;
+            document.getElementById('mainButtonIcon').innerText = 'play_arrow';
+            document.getElementById('displayContainer').classList.remove('animate-pulse-subtle');
+        }
+
+        function resetAction() {
+            if (currentMode === 'timer') {
+                pauseTimer();
+                // 停止状態に戻し、初期値または設定値を入力欄に復元
+                document.getElementById('timeDisplay').classList.add('hidden');
+                document.getElementById('inputModeContainer').classList.remove('hidden');
+                document.getElementById('setupControls').style.display = 'grid';
+                setTimeout(() => document.getElementById('setupControls').style.opacity = '1', 50);
+            } else {
+                clearInterval(stopwatchInterval);
+                isStopwatchRunning = false;
+                stopwatchPausedElapsed = 0;
+                document.getElementById('mainButtonIcon').innerText = 'play_arrow';
+                document.getElementById('stopwatchDisplay').innerText = "00:00.00";
+            }
+        }
+
+        function triggerAlarm() {
+            isAlarmActive = true;
+            const overlay = document.getElementById('alarmOverlay');
+            overlay.classList.remove('opacity-0', 'pointer-events-none');
+            
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                function playBeepLoop() {
+                    if (!isAlarmActive) return;
+                    if (audioCtx.state === 'suspended') {
+                        audioCtx.resume();
+                    }
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+                    
+                    gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+                    
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.4);
+                    
+                    setTimeout(playBeepLoop, 600);
+                }
+                playBeepLoop();
+            } catch (e) {
+                console.log('Audio error', e);
+            }
+        }
+
+        function stopAlarm() {
+            isAlarmActive = false;
+            const overlay = document.getElementById('alarmOverlay');
+            overlay.classList.add('opacity-0', 'pointer-events-none');
+            if (audioCtx && audioCtx.state !== 'closed') {
+                audioCtx.close();
+            }
+            resetAction();
+        }
+    </script>
+</body>
+</html>
+```
