@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ja" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Orientation Monitor</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Roboto for Material Design 3 aesthetic -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Google Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Roboto', 'sans-serif'],
+                    },
+                    colors: {
+                        md: {
+                            surface: '#fef7ff',
+                            onSurface: '#1d1b20',
+                            primary: '#6750a4',
+                            onPrimary: '#ffffff',
+                            primaryContainer: '#eaddff',
+                            onPrimaryContainer: '#21005d',
+                            secondaryContainer: '#e8def8',
+                            onSecondaryContainer: '#1d192b',
+                            surfaceVariant: '#e7e0ec',
+                            onSurfaceVariant: '#49454f',
+                            outline: '#79747e'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #fef7ff;
+            color: #1d1b20;
+            overflow-x: hidden;
+            user-select: none;
+        }
+        
+        @keyframes floatSlow {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-8px) rotate(1deg); }
+        }
+
+        .animate-float {
+            animation: floatSlow 4s ease-in-out infinite;
+        }
+
+        /* Smooth transitions for tilt effects */
+        .smooth-transform {
+            transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col justify-between selection:bg-md-primaryContainer selection:text-md-onPrimaryContainer">
+
+    <!-- Permission overlay shown if permissions are needed -->
+    <div id="permission-overlay" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-6 hidden">
+        <div class="bg-md-surface p-8 rounded-[28px] max-w-sm w-full shadow-2xl flex flex-col items-center text-center transform transition-all scale-100 animate-float">
+            <div class="w-16 h-16 rounded-full bg-md-primaryContainer flex items-center justify-center text-md-onPrimaryContainer mb-5">
+                <span class="material-symbols-outlined text-3xl">sensors</span>
+            </div>
+            <h2 class="text-2xl font-medium text-md-onSurface mb-3">センサーの利用</h2>
+            <p class="text-md-onSurfaceVariant text-sm leading-relaxed mb-8">
+                画面の傾きをスムーズに読み取るために、デバイスのセンサー機能の許可が必要です。
+            </p>
+            <button id="permission-btn" class="w-full py-4 px-6 bg-md-primary text-md-onPrimary rounded-full font-medium tracking-wide shadow-md hover:opacity-95 active:scale-95 transition-all">
+                許可する
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Header -->
+    <header class="w-full pt-8 pb-4 px-6 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-md-secondaryContainer flex items-center justify-center text-md-onSecondaryContainer">
+                <span class="material-symbols-outlined text-xl">screen_rotation</span>
+            </div>
+            <h1 class="text-xl font-medium text-md-onSurface">傾きモニター</h1>
+        </div>
+        <div id="status-dot" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-md-surfaceVariant text-md-onSurfaceVariant text-xs font-medium">
+            <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse" id="status-indicator"></span>
+            <span id="status-text">待機中</span>
+        </div>
+    </header>
+
+    <!-- Interactive Visualizer Area -->
+    <main class="flex-1 flex flex-col items-center justify-center px-6 py-4 max-w-md mx-auto w-full gap-8">
+        
+        <!-- 3D-like Interactive Bubble Box -->
+        <div class="relative w-64 h-64 rounded-[36px] bg-md-surfaceVariant/50 flex items-center justify-center overflow-hidden shadow-inner border border-md-outline/20">
+            <!-- Background crosshair grid -->
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+                <div class="w-full h-[1px] bg-md-outline"></div>
+                <div class="absolute h-full w-[1px] bg-md-outline"></div>
+            </div>
+
+            <!-- Concentric rings -->
+            <div class="absolute w-44 h-44 rounded-full border border-md-outline/10 pointer-events-none"></div>
+            <div class="absolute w-24 h-24 rounded-full border border-md-outline/15 pointer-events-none"></div>
+
+            <!-- Moving Bubble Element -->
+            <div id="bubble" class="w-16 h-16 rounded-full bg-md-primary shadow-lg flex items-center justify-center text-md-onPrimary smooth-transform">
+                <span class="material-symbols-outlined text-2xl animate-spin" style="animation-duration: 8s;">explore</span>
+            </div>
+        </div>
+
+        <!-- Numeric Readings Display (Grid layout without outer card boxes) -->
+        <div class="w-full grid grid-cols-2 gap-4">
+            <!-- Left/Right Tilt -->
+            <div class="bg-md-surfaceVariant/30 p-5 rounded-[24px] flex flex-col justify-between transition-all hover:bg-md-surfaceVariant/50">
+                <div class="flex items-center justify-between text-md-onSurfaceVariant mb-2">
+                    <span class="text-xs font-medium uppercase tracking-wider">左右の傾き</span>
+                    <span class="material-symbols-outlined text-base">swap_horiz</span>
+                </div>
+                <div class="flex items-baseline gap-1">
+                    <span id="val-gamma" class="text-3xl font-medium text-md-onSurface">0</span>
+                    <span class="text-sm text-md-onSurfaceVariant">°</span>
+                </div>
+            </div>
+
+            <!-- Front/Back Tilt -->
+            <div class="bg-md-surfaceVariant/30 p-5 rounded-[24px] flex flex-col justify-between transition-all hover:bg-md-surfaceVariant/50">
+                <div class="flex items-center justify-between text-md-onSurfaceVariant mb-2">
+                    <span class="text-xs font-medium uppercase tracking-wider">前後の傾き</span>
+                    <span class="material-symbols-outlined text-base">swap_vert</span>
+                </div>
+                <div class="flex items-baseline gap-1">
+                    <span id="val-beta" class="text-3xl font-medium text-md-onSurface">0</span>
+                    <span class="text-sm text-md-onSurfaceVariant">°</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Compass Direction row -->
+        <div class="w-full bg-md-surfaceVariant/30 px-6 py-4 rounded-[20px] flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-md-primary">navigation</span>
+                <span class="text-sm font-medium text-md-onSurfaceVariant">向き</span>
+            </div>
+            <div class="flex items-baseline gap-1">
+                <span id="val-alpha" class="text-xl font-medium text-md-onSurface">0</span>
+                <span class="text-xs text-md-onSurfaceVariant">°</span>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // DOM Elements
+        const bubble = document.getElementById('bubble');
+        const valGamma = document.getElementById('val-gamma');
+        const valBeta = document.getElementById('val-beta');
+        const valAlpha = document.getElementById('val-alpha');
+        const statusText = document.getElementById('status-text');
+        const statusIndicator = document.getElementById('status-indicator');
+        const permissionOverlay = document.getElementById('permission-overlay');
+        const permissionBtn = document.getElementById('permission-btn');
+
+        let isTracking = false;
+
+        // Function to update orientation values and UI
+        function handleOrientation(event) {
+            // gamma: Left to right (-90 to 90)
+            // beta: Front to back (-180 to 180)
+            // alpha: Compass direction (0 to 360)
+            const gamma = event.gamma !== null ? Math.round(event.gamma) : 0;
+            const beta = event.beta !== null ? Math.round(event.beta) : 0;
+            const alpha = event.alpha !== null ? Math.round(event.alpha) : 0;
+
+            valGamma.textContent = gamma;
+            valBeta.textContent = beta;
+            valAlpha.textContent = alpha;
+
+            // Move the bubble inside the 256px container (limit range to keep inside)
+            // Container is 256px, bubble is 64px, max travel is ±96px
+            const maxTranslate = 80;
+            const clampedGamma = Math.max(-45, Math.min(45, gamma));
+            const clampedBeta = Math.max(-45, Math.min(45, beta));
+
+            const translateX = (clampedGamma / 45) * maxTranslate;
+            const translateY = (clampedBeta / 45) * maxTranslate;
+
+            bubble.style.transform = `translate(${translateX}px, ${translateY}px)`;
+
+            if (!isTracking) {
+                isTracking = true;
+                statusText.textContent = "計測中";
+                statusIndicator.className = "w-2 h-2 rounded-full bg-emerald-500";
+            }
+        }
+
+        // Start listening to device orientation
+        function startOrientationTracking() {
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                // iOS 13+ permission flow
+                DeviceOrientationEvent.requestPermission()
+                    .then(response => {
+                        if (response === 'granted') {
+                            window.addEventListener('deviceorientation', handleOrientation);
+                            permissionOverlay.classList.add('hidden');
+                        } else {
+                            statusText.textContent = "拒否されました";
+                            statusIndicator.className = "w-2 h-2 rounded-full bg-rose-500";
+                            permissionOverlay.classList.add('hidden');
+                        }
+                    })
+                    .catch(() => {
+                        permissionOverlay.classList.remove('hidden');
+                    });
+            } else {
+                // Standard browsers (Android, etc.)
+                window.addEventListener('deviceorientation', handleOrientation);
+                permissionOverlay.classList.add('hidden');
+                
+                // Fallback check if events actually fire
+                setTimeout(() => {
+                    if (!isTracking) {
+                        statusText.textContent = "センサー非対応";
+                        statusIndicator.className = "w-2 h-2 rounded-full bg-rose-500";
+                    }
+                }, 1500);
+            }
+        }
+
+        // Trigger permission request immediately on page load as requested
+        window.addEventListener('DOMContentLoaded', () => {
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                // Show polite overlay to comply with user gesture requirements on iOS
+                permissionOverlay.classList.remove('hidden');
+            } else {
+                // Attempt automatic start for non-iOS devices
+                startOrientationTracking();
+            }
+        });
+
+        permissionBtn.addEventListener('click', () => {
+            startOrientationTracking();
+        });
+    </script>
+</body>
+</html>
