@@ -1,247 +1,655 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HTML Source Viewer</title>
-    <style>
-        /* 基本スタイル：白地に黒文字、明朝体 */
-        :root {
-            --bg-color: #ffffff;
-            --text-color: #000000;
-            --accent-color: #000000;
-            --border-color: #000000;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HTML Reader</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/noto-sans-jp@5.0.0/400.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/noto-sans-jp@5.0.0/500.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/noto-sans-jp@5.0.0/700.css">
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 
-        * {
-            box-sizing: border-box;
-        }
+  :root {
+    --md-primary: #6750a4;
+    --md-on-primary: #ffffff;
+    --md-primary-container: #eaddff;
+    --md-on-primary-container: #21005d;
+    --md-surface: #ffffff;
+    --md-surface-dim: #f3edf7;
+    --md-surface-container: #ece6f0;
+    --md-surface-container-high: #e6e0e9;
+    --md-on-surface: #1c1b1f;
+    --md-on-surface-variant: #49454f;
+    --md-outline: #79747e;
+    --md-outline-variant: #cac4d0;
+    --md-error: #b3261e;
+  }
 
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            font-family: "Sawarabi Mincho", "Yu Mincho", "MS Mincho", serif;
-            margin: 0;
-            padding: 40px 20px;
-            line-height: 1.6;
-            display: flex;
-            justify-content: center;
-        }
+  html, body {
+    background: var(--md-surface);
+    color: var(--md-on-surface);
+    font-family: 'Noto Sans JP', system-ui, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
 
-        .wrapper {
-            width: 100%;
-            max-width: 800px;
-        }
+  body {
+    padding: 48px 24px 80px;
+    max-width: 960px;
+    margin: 0 auto;
+  }
 
-        header {
-            margin-bottom: 40px;
-            text-align: center;
-        }
+  .title {
+    font-size: 2.25rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--md-on-surface);
+    margin-bottom: 8px;
+    opacity: 0;
+    transform: translateY(12px);
+    animation: rise 0.7s cubic-bezier(0.2, 0, 0, 1) 0.05s forwards;
+  }
 
-        h1 {
-            font-weight: normal;
-            font-size: 1.5rem;
-            letter-spacing: 0.1em;
-            margin: 0;
-        }
+  .subtitle {
+    font-size: 0.95rem;
+    color: var(--md-on-surface-variant);
+    margin-bottom: 32px;
+    opacity: 0;
+    transform: translateY(12px);
+    animation: rise 0.7s cubic-bezier(0.2, 0, 0, 1) 0.15s forwards;
+  }
 
-        /* 入力エリア */
-        .search-form {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
+  @keyframes rise {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 
-        input[type="url"] {
-            flex: 1;
-            background: transparent;
-            border: 1px solid var(--border-color);
-            padding: 12px 15px;
-            font-family: inherit;
-            font-size: 1rem;
-            outline: none;
-        }
+  .input-row {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+    margin-bottom: 20px;
+    opacity: 0;
+    transform: translateY(12px);
+    animation: rise 0.7s cubic-bezier(0.2, 0, 0, 1) 0.25s forwards;
+  }
 
-        button {
-            background-color: var(--accent-color);
-            color: var(--bg-color);
-            border: 1px solid var(--border-color);
-            padding: 12px 30px;
-            font-family: inherit;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: opacity 0.2s;
-        }
+  .field {
+    position: relative;
+    flex: 1;
+  }
 
-        button:hover {
-            opacity: 0.7;
-        }
+  .field input {
+    width: 100%;
+    height: 56px;
+    padding: 20px 16px 6px;
+    background: var(--md-surface-dim);
+    border: none;
+    border-bottom: 1px solid var(--md-outline);
+    border-radius: 4px 4px 0 0;
+    font-size: 1rem;
+    font-family: inherit;
+    color: var(--md-on-surface);
+    outline: none;
+    transition: background 0.25s ease, border-color 0.25s ease;
+  }
 
-        button:disabled {
-            opacity: 0.3;
-            cursor: not-allowed;
-        }
+  .field input:hover {
+    background: #ebe5ef;
+  }
 
-        /* 状態表示 */
-        #status {
-            font-size: 0.85rem;
-            margin-bottom: 20px;
-            min-height: 1.5em;
-        }
+  .field input:focus {
+    background: #e7e0ea;
+    border-bottom: 2px solid var(--md-primary);
+    padding-bottom: 5px;
+  }
 
-        /* ソース表示エリア */
-        .result-area {
-            border: 1px solid var(--border-color);
-            padding: 20px;
-            position: relative;
-            display: none;
-        }
+  .field label {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--md-on-surface-variant);
+    font-size: 1rem;
+    pointer-events: none;
+    transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+    padding: 0 4px;
+  }
 
-        pre {
-            margin: 0;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            font-family: "SF Mono", "Courier New", monospace;
-            font-size: 0.9rem;
-            line-height: 1.5;
-        }
+  .field input:focus + label,
+  .field input:not(:placeholder-shown) + label {
+    top: 12px;
+    transform: translateY(0);
+    font-size: 0.75rem;
+    color: var(--md-primary);
+  }
 
-        .copy-btn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            font-size: 0.7rem;
-            padding: 5px 10px;
-            background: #000;
-            color: #fff;
-            border: none;
-            cursor: pointer;
-        }
+  .btn {
+    position: relative;
+    height: 56px;
+    padding: 0 28px;
+    border: none;
+    border-radius: 100px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    overflow: hidden;
+    transition: all 0.25s cubic-bezier(0.2, 0, 0, 1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
 
-        /* ローディングアニメーションの修正 */
-        .dots:after {
-            content: '';
-            display: inline-block;
-            width: 1.5em;
-            text-align: left;
-            animation: dots 1.5s infinite;
-        }
+  .btn-filled {
+    background: var(--md-primary);
+    color: var(--md-on-primary);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08), 0 1px 3px rgba(103,80,164,0.15);
+  }
 
-        @keyframes dots {
-            0% { content: ''; }
-            33% { content: '.'; }
-            66% { content: '..'; }
-            100% { content: '...'; }
-        }
+  .btn-filled:hover {
+    box-shadow: 0 2px 6px rgba(103,80,164,0.25), 0 1px 2px rgba(103,80,164,0.2);
+    transform: translateY(-1px);
+    background: #7461af;
+  }
 
-        .error {
-            color: #ff0000;
-        }
-    </style>
+  .btn-filled:active {
+    transform: translateY(0);
+    background: #5a4594;
+  }
+
+  .btn-filled:disabled {
+    background: rgba(28, 27, 31, 0.12);
+    color: rgba(28, 27, 31, 0.38);
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+  }
+
+  .btn-tonal {
+    background: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+  }
+
+  .btn-tonal:hover {
+    box-shadow: 0 1px 3px rgba(103,80,164,0.15);
+    background: #e0d0f7;
+  }
+
+  .btn-tonal:active {
+    background: #d6c4ee;
+  }
+
+  .ripple {
+    position: absolute;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.25;
+    transform: scale(0);
+    animation: ripple 0.6s ease-out;
+    pointer-events: none;
+  }
+
+  @keyframes ripple {
+    to {
+      transform: scale(4);
+      opacity: 0;
+    }
+  }
+
+  .mode-switch {
+    display: inline-flex;
+    background: var(--md-surface-container);
+    border-radius: 100px;
+    padding: 4px;
+    margin-bottom: 24px;
+    position: relative;
+    opacity: 0;
+    transform: translateY(12px);
+    animation: rise 0.7s cubic-bezier(0.2, 0, 0, 1) 0.35s forwards;
+  }
+
+  .mode-btn {
+    position: relative;
+    padding: 10px 22px;
+    border: none;
+    background: transparent;
+    border-radius: 100px;
+    font-family: inherit;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: var(--md-on-surface-variant);
+    cursor: pointer;
+    transition: color 0.3s ease;
+    z-index: 2;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .mode-btn.active {
+    color: var(--md-on-surface);
+  }
+
+  .mode-indicator {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    height: calc(100% - 8px);
+    background: var(--md-surface);
+    border-radius: 100px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    transition: all 0.35s cubic-bezier(0.2, 0, 0, 1);
+    z-index: 1;
+  }
+
+  .status {
+    min-height: 28px;
+    margin-bottom: 16px;
+    font-size: 0.9rem;
+    color: var(--md-on-surface-variant);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .status.visible {
+    opacity: 1;
+  }
+
+  .status.error {
+    color: var(--md-error);
+  }
+
+  .dots {
+    display: inline-flex;
+    gap: 4px;
+  }
+
+  .dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--md-primary);
+    animation: bounce 1.2s infinite ease-in-out;
+  }
+
+  .dots span:nth-child(2) { animation-delay: 0.15s; }
+  .dots span:nth-child(3) { animation-delay: 0.3s; }
+
+  @keyframes bounce {
+    0%, 80%, 100% {
+      transform: scale(0.6);
+      opacity: 0.5;
+    }
+    40% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  .result-wrap {
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .result-wrap.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .result-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .meta {
+    font-size: 0.85rem;
+    color: var(--md-on-surface-variant);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .meta .chip {
+    display: inline-block;
+    padding: 4px 10px;
+    background: var(--md-surface-container);
+    border-radius: 8px;
+    font-size: 0.78rem;
+    color: var(--md-on-surface-variant);
+    transition: transform 0.2s ease;
+  }
+
+  .meta .chip:hover {
+    transform: translateY(-1px);
+  }
+
+  .code-area {
+    position: relative;
+    background: var(--md-surface-dim);
+    border-radius: 16px;
+    padding: 20px;
+    overflow: hidden;
+  }
+
+  pre {
+    margin: 0;
+    max-height: 520px;
+    overflow: auto;
+    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    color: var(--md-on-surface);
+    white-space: pre;
+    tab-size: 2;
+    scrollbar-width: thin;
+    scrollbar-color: var(--md-outline-variant) transparent;
+  }
+
+  pre::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  pre::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  pre::-webkit-scrollbar-thumb {
+    background: var(--md-outline-variant);
+    border-radius: 4px;
+  }
+  pre::-webkit-scrollbar-thumb:hover {
+    background: var(--md-outline);
+  }
+
+  code {
+    display: block;
+  }
+
+  .code-area.copied {
+    animation: flash 0.6s ease;
+  }
+
+  @keyframes flash {
+    0%, 100% { background: var(--md-surface-dim); }
+    50% { background: var(--md-primary-container); }
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--md-on-surface);
+    color: var(--md-surface);
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    opacity: 0;
+    transition: all 0.35s cubic-bezier(0.2, 0, 0, 1);
+    z-index: 100;
+    pointer-events: none;
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  @media (max-width: 600px) {
+    body { padding: 32px 16px 60px; }
+    .title { font-size: 1.75rem; }
+    .input-row { flex-direction: column; }
+    .btn { width: 100%; height: 50px; }
+    pre { font-size: 0.75rem; }
+    .mode-btn { padding: 9px 16px; font-size: 0.82rem; }
+  }
+</style>
 </head>
 <body>
 
-<div class="wrapper">
-    <header>
-        <h1>HTML取得</h1>
-    </header>
+<h1 class="title">HTML Reader</h1>
+<p class="subtitle">URLを入力して、ページのコードを取得します。</p>
 
-    <div class="search-form">
-        <input type="url" id="urlInput" placeholder="https://example.com" spellcheck="false">
-        <button id="fetchBtn" onclick="fetchSource()">取得</button>
-    </div>
-
-    <div id="status"></div>
-
-    <div id="resultArea" class="result-area">
-        <button class="copy-btn" onclick="copyToClipboard()">コピー</button>
-        <pre id="output"></pre>
-    </div>
+<div class="input-row">
+  <div class="field">
+    <input type="url" id="urlInput" placeholder=" " autocomplete="off" spellcheck="false">
+    <label for="urlInput">URL</label>
+  </div>
+  <button class="btn btn-filled" id="fetchBtn">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 12a9 9 0 0 1-9 9m9-9a9 9 0 0 0-9-9m9 9H3m9 9a9 9 0 0 1-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9m-9 9a9 9 0 0 1 9-9"/>
+    </svg>
+    <span>取得</span>
+  </button>
 </div>
 
+<div class="mode-switch" id="modeSwitch">
+  <div class="mode-indicator" id="modeIndicator"></div>
+  <button class="mode-btn active" data-mode="summary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="21" y1="15" x2="9" y2="15"/>
+      <line x1="21" y1="11" x2="7" y2="11"/>
+      <line x1="15" y1="7" x2="3" y2="7"/>
+    </svg>
+    <span>要約</span>
+  </button>
+  <button class="mode-btn" data-mode="source">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="16 18 22 12 16 6"/>
+      <polyline points="8 6 2 12 8 18"/>
+    </svg>
+    <span>ソース全文</span>
+  </button>
+</div>
+
+<div class="status" id="status"></div>
+
+<div class="result-wrap" id="resultWrap">
+  <div class="result-head">
+    <div class="meta">
+      <span id="metaText"></span>
+    </div>
+    <button class="btn btn-tonal" id="copyBtn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+      </svg>
+      <span id="copyLabel">コピー</span>
+    </button>
+  </div>
+  <div class="code-area" id="codeArea">
+    <pre><code id="codeOutput"></code></pre>
+  </div>
+</div>
+
+<div class="toast" id="toast">コピーしました</div>
+
 <script>
-    let currentHtml = "";
+  const urlInput = document.getElementById('urlInput');
+  const fetchBtn = document.getElementById('fetchBtn');
+  const statusEl = document.getElementById('status');
+  const resultWrap = document.getElementById('resultWrap');
+  const codeOutput = document.getElementById('codeOutput');
+  const codeArea = document.getElementById('codeArea');
+  const copyBtn = document.getElementById('copyBtn');
+  const copyLabel = document.getElementById('copyLabel');
+  const metaText = document.getElementById('metaText');
+  const toast = document.getElementById('toast');
+  const modeSwitch = document.getElementById('modeSwitch');
+  const modeIndicator = document.getElementById('modeIndicator');
+  const modeBtns = document.querySelectorAll('.mode-btn');
 
-    async function fetchSource() {
-        const input = document.getElementById('urlInput');
-        const btn = document.getElementById('fetchBtn');
-        const status = document.getElementById('status');
-        const resultArea = document.getElementById('resultArea');
-        const output = document.getElementById('output');
+  let currentCode = '';
+  let currentMode = 'summary';
 
-        let url = input.value.trim();
-        if (!url) {
-            status.innerHTML = '<span class="error">URLを入力してください</span>';
-            return;
-        }
-        if (!url.startsWith('http')) url = 'https://' + url;
-        input.value = url;
+  function updateIndicator() {
+    const activeBtn = document.querySelector('.mode-btn.active');
+    if (!activeBtn) return;
+    const switchRect = modeSwitch.getBoundingClientRect();
+    const btnRect = activeBtn.getBoundingClientRect();
+    modeIndicator.style.width = btnRect.width + 'px';
+    modeIndicator.style.left = (btnRect.left - switchRect.left) + 'px';
+  }
 
-        // UI初期化
-        btn.disabled = true;
-        status.innerHTML = '接続中<span class="dots"></span>';
-        resultArea.style.display = 'none';
-        output.textContent = '';
+  function setMode(mode) {
+    currentMode = mode;
+    modeBtns.forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+    updateIndicator();
+  }
 
-        // プロキシを試行する仕組み
-        const proxies = [
-            u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
-            u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`
-        ];
-
-        let success = false;
-        for (let i = 0; i < proxies.length; i++) {
-            try {
-                const res = await fetch(proxies[i](url));
-                if (!res.ok) throw new Error();
-                
-                if (i === 0) {
-                    const json = await res.json();
-                    currentHtml = json.contents;
-                } else {
-                    currentHtml = await res.text();
-                }
-
-                if (currentHtml) {
-                    success = true;
-                    break;
-                }
-            } catch (e) {
-                console.log(`Proxy ${i} failed`);
-            }
-        }
-
-        if (success) {
-            output.textContent = currentHtml;
-            resultArea.style.display = 'block';
-            status.innerHTML = '取得完了';
-        } else {
-            status.innerHTML = '<span class="error">エラー: ソースを取得できませんでした。</span>';
-        }
-
-        btn.disabled = false;
-    }
-
-    function copyToClipboard() {
-        if (!currentHtml) return;
-        const textarea = document.createElement('textarea');
-        textarea.value = currentHtml;
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-        
-        const status = document.getElementById('status');
-        const originalText = status.innerHTML;
-        status.innerHTML = 'コピーしました';
-        setTimeout(() => { status.innerHTML = originalText; }, 2000);
-    }
-
-    document.getElementById('urlInput').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') fetchSource();
+  modeBtns.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      setMode(btn.dataset.mode);
     });
+  });
+
+  window.addEventListener('load', () => {
+    setTimeout(updateIndicator, 400);
+  });
+  window.addEventListener('resize', updateIndicator);
+
+  function addRipple(e, btn) {
+    const rect = btn.getBoundingClientRect();
+    const ripple = document.createElement('span');
+    const size = Math.max(rect.width, rect.height);
+    ripple.className = 'ripple';
+    ripple.style.width = ripple.style.height = size + 'px';
+    ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
+    ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
+    btn.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 600);
+  }
+
+  fetchBtn.addEventListener('click', (e) => {
+    addRipple(e, fetchBtn);
+    handleFetch();
+  });
+
+  copyBtn.addEventListener('click', (e) => {
+    addRipple(e, copyBtn);
+    handleCopy();
+  });
+
+  urlInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handleFetch();
+  });
+
+  function setStatus(html, isError = false) {
+    statusEl.classList.toggle('error', isError);
+    statusEl.innerHTML = html;
+    statusEl.classList.add('visible');
+  }
+
+  function clearStatus() {
+    statusEl.classList.remove('visible');
+    statusEl.innerHTML = '';
+  }
+
+  function escapeHtml(str) {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  async function handleFetch() {
+    let url = urlInput.value.trim();
+    if (!url) {
+      urlInput.focus();
+      urlInput.style.animation = 'none';
+      void urlInput.offsetWidth;
+      urlInput.style.animation = 'shake 0.4s ease';
+      return;
+    }
+    if (!/^https?:\/\//i.test(url)) {
+      url = 'https://' + url;
+      urlInput.value = url;
+    }
+
+    fetchBtn.disabled = true;
+    resultWrap.classList.remove('show');
+    setStatus('<span class="dots"><span></span><span></span><span></span></span><span>取得中...</span>');
+
+    try {
+      const target = 'https://r.jina.ai/' + url;
+      const headers = {};
+      if (currentMode === 'source') {
+        headers['X-Return-Format'] = 'html';
+        headers['Accept'] = 'text/html';
+      } else {
+        headers['Accept'] = 'text/html';
+      }
+
+      const res = await fetch(target, { headers });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      currentCode = text;
+
+      const sizeKb = (new Blob([text]).size / 1024).toFixed(1);
+      const lines = text.split('\n').length;
+      const modeLabel = currentMode === 'source' ? 'HTML' : 'Markdown';
+      metaText.innerHTML = `<span class="chip">${modeLabel}</span><span class="chip">${lines.toLocaleString()} 行</span><span class="chip">${sizeKb} KB</span>`;
+
+      codeOutput.innerHTML = escapeHtml(text);
+      setStatus('');
+      clearStatus();
+      resultWrap.classList.add('show');
+      copyLabel.textContent = 'コピー';
+    } catch (err) {
+      setStatus('取得に失敗しました: ' + escapeHtml(err.message), true);
+      resultWrap.classList.remove('show');
+    } finally {
+      fetchBtn.disabled = false;
+    }
+  }
+
+  async function handleCopy() {
+    if (!currentCode) return;
+    try {
+      await navigator.clipboard.writeText(currentCode);
+      codeArea.classList.remove('copied');
+      void codeArea.offsetWidth;
+      codeArea.classList.add('copied');
+      copyLabel.textContent = 'コピー済み';
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 1800);
+      setTimeout(() => { copyLabel.textContent = 'コピー'; }, 2200);
+    } catch (err) {
+      setStatus('コピーに失敗しました', true);
+    }
+  }
+
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-6px); }
+      75% { transform: translateX(6px); }
+    }
+  `;
+  document.head.appendChild(style);
 </script>
 
 </body>
 </html>
-
