@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF Viewer</title>
+  <!-- PDF.js (Cloudflare CDN) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <style>
+    :root {
+      --bg-black: #000000;
+      --text-main: #111827;
+      --text-muted: #4b5563;
+      --accent: #2563eb;
+      --top-bar-height: 60px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    button,
+    [role="button"],
+    .liquid-glass {
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      user-select: none;
+      -webkit-user-select: none;
+      outline: none;
+    }
+
+    button:focus,
+    button:focus-visible,
+    button:active {
+      outline: none;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg-black);
+      color: var(--text-main);
+      min-height: 100vh;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Liquid Glass 共通ベーススタイル（白基調・ぼかし1.0px） */
+    .liquid-glass {
+      position: relative;
+      -webkit-backdrop-filter: blur(1px) saturate(145%) brightness(102%);
+      backdrop-filter: blur(1px) saturate(145%) brightness(102%);
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.72) 0%,
+        rgba(255, 255, 255, 0.42) 50%,
+        rgba(255, 255, 255, 0.62) 100%
+      );
+      /* 外周のメニスカス反射とプリズムの微細な色づき */
+      box-shadow:
+        0 14px 34px -8px rgba(0, 0, 0, 0.45),
+        0 4px 12px -2px rgba(0, 0, 0, 0.25),
+        inset 0 1.5px 1.5px rgba(255, 255, 255, 0.96),
+        inset 0 -1.5px 2px rgba(148, 163, 184, 0.25),
+        inset 1.5px 0 2px rgba(56, 189, 248, 0.28),
+        inset -1.5px 0 2px rgba(244, 114, 182, 0.28);
+      border: 1px solid rgba(255, 255, 255, 0.85);
+      transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease;
+    }
+
+    .liquid-glass::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: radial-gradient(
+        120% 90% at 15% 10%,
+        rgba(255, 255, 255, 0.65) 0%,
+        rgba(255, 255, 255, 0.12) 45%,
+        transparent 72%
+      );
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    /* 上部固定バー（常に1行固定・タイトル横スクロール対応） */
+    .top-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: var(--top-bar-height);
+      z-index: 50;
+      border-radius: 0 0 20px 20px;
+      border-top: none;
+      padding: 8px 16px;
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .bar-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: relative;
+      z-index: 3;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .bar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: relative;
+      z-index: 3;
+      flex: 0 0 auto;
+    }
+
+    .app-badge {
+      width: 38px;
+      height: 38px;
+      border-radius: 13px;
+      display: grid;
+      place-items: center;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .file-meta {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    /* 長いタイトル用横スクロールコンテナ＆右端フェードマスク */
+    .file-name-scroll {
+      width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      white-space: nowrap;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-x;
+    }
+
+    .file-name-scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* タイトルがはみ出す場合、右端をぼかして横スクロール可能であることを示す */
+    .file-name-scroll.can-scroll-right {
+      padding-right: 26px;
+      -webkit-mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 28px), transparent 100%);
+      mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 28px), transparent 100%);
+    }
+
+    .file-name-scroll.can-scroll-left:not(.can-scroll-right) {
+      -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 22px, #000 100%);
+      mask-image: linear-gradient(to right, transparent 0%, #000 22px, #000 100%);
+    }
+
+    .file-name-scroll.can-scroll-left.can-scroll-right {
+      padding-right: 26px;
+      -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 20px, #000 calc(100% - 28px), transparent 100%);
+      mask-image: linear-gradient(to right, transparent 0%, #000 20px, #000 calc(100% - 28px), transparent 100%);
+    }
+
+    .file-name {
+      display: inline-block;
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--text-main);
+      line-height: 1.25;
+      white-space: nowrap;
+    }
+
+    .file-sub {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .glass-btn {
+      border-radius: 999px;
+      padding: 9px 16px;
+      color: var(--text-main);
+      font-size: 0.84rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .glass-btn:hover {
+      transform: translateY(-1.5px) scale(1.02);
+    }
+
+    .glass-btn:active {
+      transform: scale(0.97);
+    }
+
+    /* メインステージ（上部固定バーの高さ分だけ余白を確保して1枚目が隠れないように配置） */
+    .viewer-stage {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      margin: 0 auto;
+      padding-top: var(--top-bar-height);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* アップロードカード */
+    .upload-card {
+      width: min(560px, calc(100% - 32px));
+      margin-top: 16vh;
+      border-radius: 36px;
+      padding: 52px 32px;
+      text-align: center;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .upload-card.drag-over {
+      transform: scale(1.02);
+      border-color: rgba(37, 99, 235, 0.65);
+    }
+
+    .upload-content {
+      position: relative;
+      z-index: 3;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .upload-icon-orb {
+      width: 76px;
+      height: 76px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      color: var(--accent);
+    }
+
+    .upload-title {
+      font-size: 1.32rem;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: -0.01em;
+    }
+
+    .upload-desc {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      max-width: 400px;
+    }
+
+    /* プログレスバーコンテナ */
+    .progress-box {
+      position: fixed;
+      top: calc(var(--top-bar-height) + 16px);
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 45;
+      width: min(440px, calc(100% - 32px));
+      border-radius: 26px;
+      padding: 16px 22px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      text-align: center;
+    }
+
+    .progress-box.visible {
+      display: flex;
+    }
+
+    .progress-inner {
+      position: relative;
+      z-index: 3;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.14);
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #3b82f6, #06b6d4);
+      transition: width 0.2s ease;
+    }
+
+    /* PDF全ページコンテナ（外枠なし・縦並び全画面） */
+    .pages-container {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      background: #000000;
+    }
+
+    .pdf-page-item {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      background: #000000;
+    }
+
+    .pdf-page-item canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: #ffffff;
+    }
+
+    /* 下部フローティングページ表示ボタン（2桁以上でも途切れない幅自動適応＆等幅数字） */
+    .bottom-dock {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 50;
+      width: max-content;
+      min-width: 112px;
+      border-radius: 999px;
+      padding: 10px 22px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      white-space: nowrap;
+      transition:
+        transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+        opacity 0.28s ease,
+        box-shadow 0.22s ease;
+    }
+
+    .bottom-dock.visible {
+      display: inline-flex;
+    }
+
+    .bottom-dock.hidden-for-modal {
+      opacity: 0;
+      transform: translateX(-50%) translateY(16px) scale(0.84);
+      pointer-events: none;
+    }
+
+    .bottom-dock:hover {
+      transform: translateX(-50%) translateY(-2px) scale(1.04);
+    }
+
+    .bottom-dock:active {
+      transform: translateX(-50%) scale(0.93);
+    }
+
+    .dock-inner {
+      position: relative;
+      z-index: 3;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-main);
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+
+    .dock-inner svg {
+      flex-shrink: 0;
+    }
+
+    /* ページ一覧モーダルオーバーレイ（アニメーション対応） */
+    .page-overview-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 70;
+      background: rgba(0, 0, 0, 0);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 16px;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition:
+        opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+        background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 0s linear 0.32s;
+    }
+
+    .page-overview-backdrop.open {
+      background: rgba(0, 0, 0, 0.58);
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transition:
+        opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+        background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 0s linear 0s;
+    }
+
+    @media (min-width: 640px) {
+      .page-overview-backdrop {
+        align-items: center;
+        padding: 24px;
+      }
+    }
+
+    /* ページ一覧パネル（Liquid Glass適用・水滴のように弾んで展開） */
+    .page-overview-panel {
+      width: min(880px, 100%);
+      max-height: 82vh;
+      border-radius: 32px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow: hidden;
+      transform-origin: bottom center;
+      transform: translateY(48px) scale(0.86);
+      opacity: 0;
+      transition:
+        transform 0.44s cubic-bezier(0.34, 1.38, 0.64, 1),
+        opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+      will-change: transform, opacity;
+    }
+
+    @media (min-width: 640px) {
+      .page-overview-panel {
+        transform-origin: center 80%;
+        transform: translateY(28px) scale(0.90);
+      }
+    }
+
+    .page-overview-backdrop.open .page-overview-panel {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+
+    .overview-header {
+      position: relative;
+      z-index: 3;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 4px;
+    }
+
+    .overview-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .overview-close-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      color: var(--text-main);
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .overview-close-btn:hover {
+      transform: scale(1.06);
+    }
+
+    .overview-close-btn:active {
+      transform: scale(0.95);
+    }
+
+    .overview-grid {
+      position: relative;
+      z-index: 3;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+      gap: 14px;
+      overflow-y: auto;
+      padding: 4px;
+      overscroll-behavior: contain;
+    }
+
+    /* 各ページサムネイルカード（Liquid Glass適用・スタガー出現アニメーション） */
+    .thumb-card {
+      border-radius: 20px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      text-align: center;
+      opacity: 0;
+      transform: translateY(16px) scale(0.93);
+      transition:
+        transform 0.38s cubic-bezier(0.34, 1.45, 0.64, 1),
+        opacity 0.28s ease,
+        box-shadow 0.22s ease;
+      transition-delay: var(--stagger-delay, 0ms);
+    }
+
+    .page-overview-backdrop.open .thumb-card {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    .page-overview-backdrop.open .thumb-card:hover {
+      transition-delay: 0ms;
+      transform: translateY(-3px) scale(1.03);
+    }
+
+    .page-overview-backdrop.open .thumb-card:active {
+      transition-delay: 0ms;
+      transform: scale(0.96);
+    }
+
+    .thumb-card.active {
+      border-color: rgba(255, 255, 255, 0.98);
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.92) 0%,
+        rgba(255, 255, 255, 0.72) 50%,
+        rgba(255, 255, 255, 0.88) 100%
+      );
+      box-shadow:
+        0 12px 26px -6px rgba(0, 0, 0, 0.32),
+        inset 0 0 0 1.5px rgba(17, 24, 39, 0.45);
+    }
+
+    .thumb-img-wrap {
+      position: relative;
+      z-index: 3;
+      width: 100%;
+      aspect-ratio: 1 / 1.35;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #ffffff;
+      display: grid;
+      place-items: center;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+    }
+
+    .thumb-img-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    .thumb-label {
+      position: relative;
+      z-index: 3;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    /* トースト通知 */
+    .toast-msg {
+      position: fixed;
+      top: calc(var(--top-bar-height) + 14px);
+      left: 50%;
+      transform: translateX(-50%) translateY(-16px);
+      z-index: 60;
+      border-radius: 999px;
+      padding: 10px 20px;
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: var(--text-main);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+
+    .toast-msg.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <!-- 動的生成されるSVG光学屈折フィルター格納領域 -->
+  <svg id="svg-filter-defs" style="position: fixed; top: -9999px; left: -9999px; width: 0; height: 0; pointer-events: none;" aria-hidden="true">
+    <defs id="glass-defs"></defs>
+  </svg>
+
+  <!-- 通知トースト -->
+  <div class="liquid-glass toast-msg" id="toast-msg" data-bezel="12" data-refraction="18"></div>
+
+  <!-- 上部固定バー -->
+  <header class="liquid-glass top-bar" id="top-bar" data-bezel="14" data-refraction="22">
+    <div class="bar-left">
+      <div class="liquid-glass app-badge" data-bezel="10" data-refraction="14">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+        </svg>
+      </div>
+      <div class="file-meta">
+        <div class="file-name-scroll" id="header-filename-scroll">
+          <span class="file-name" id="header-filename">PDF Viewer</span>
+        </div>
+        <span class="file-sub" id="header-status">ドキュメント未選択</span>
+      </div>
+    </div>
+
+    <div class="bar-right">
+      <input type="file" id="pdf-file-input" accept="application/pdf" hidden />
+      <button type="button" class="liquid-glass glass-btn" id="open-file-btn" data-bezel="12" data-refraction="18">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="17 8 12 3 7 8"></polyline>
+          <line x1="12" y1="3" x2="12" y2="15"></line>
+        </svg>
+        PDFを開く
+      </button>
+    </div>
+  </header>
+
+  <!-- メインステージ -->
+  <main class="viewer-stage">
+    <!-- 初期アップロードエリア -->
+    <section class="liquid-glass upload-card" id="drop-zone" data-bezel="24" data-refraction="32">
+      <div class="upload-content">
+        <div class="liquid-glass upload-icon-orb" data-bezel="18" data-refraction="24">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <path d="M12 18v-6"></path>
+            <path d="M9 15l3-3 3 3"></path>
+          </svg>
+        </div>
+        <h1 class="upload-title">PDFファイルをドロップまたは選択</h1>
+        <p class="upload-desc">
+          ローカルのPDFファイルを読み込んで、すべてのページを一覧で閲覧できます。
+        </p>
+        <button type="button" class="liquid-glass glass-btn" id="hero-select-btn" data-bezel="14" data-refraction="20" style="margin-top: 6px; padding: 12px 28px; font-size: 0.92rem;">
+          ファイルを選択
+        </button>
+      </div>
+    </section>
+
+    <!-- 読み込み進捗表示 -->
+    <div class="liquid-glass progress-box" id="progress-box" data-bezel="16" data-refraction="22">
+      <div class="progress-inner">
+        <div style="display: flex; justify-content: space-between; font-size: 0.84rem; font-weight: 700; color: var(--text-main);">
+          <span id="progress-label">読み込み中...</span>
+          <span id="progress-percent">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PDF全ページ描画コンテナ -->
+    <section class="pages-container" id="pages-container" aria-label="PDFページ一覧"></section>
+  </main>
+
+  <!-- 下部フローティングページ表示ボタン -->
+  <button type="button" class="liquid-glass bottom-dock" id="bottom-dock" data-bezel="16" data-refraction="24" aria-label="ページ一覧を開く">
+    <span class="dock-inner">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+        <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+        <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+        <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+      </svg>
+      <span id="current-page-label">1</span>
+      <span>/</span>
+      <span id="total-pages-label">0</span>
+    </span>
+  </button>
+
+  <!-- ページ一覧モーダル（Liquid Glass適用） -->
+  <div class="page-overview-backdrop" id="overview-backdrop" role="dialog" aria-modal="true" aria-hidden="true" aria-label="ページ一覧">
+    <div class="liquid-glass page-overview-panel" id="overview-panel" data-bezel="20" data-refraction="26">
+      <div class="overview-header">
+        <span class="overview-title" id="overview-title">ページ一覧</span>
+        <button type="button" class="liquid-glass overview-close-btn" id="overview-close-btn" data-bezel="10" data-refraction="14" aria-label="閉じる">✕</button>
+      </div>
+      <div class="overview-grid" id="overview-grid"></div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * 固定光学パラメータ
+     * - エッジ屈折の太さ: 1.80
+     * - 屈折率: 0.65
+     * - プリズム (色収差分散): 8.0
+     * - ぼかし: 1.0px
+     */
+    const OPTICS = {
+      edgeThickness: 1.80,
+      refractionIndex: 0.65,
+      prismDispersion: 8.0,
+      frostBlur: 1.0
+    };
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+    const defs = document.getElementById("glass-defs");
+    const isChromium = Boolean(window.chrome) || /Chrome|Edg|OPR/.test(navigator.userAgent);
+
+    /**
+     * 角丸矩形の符号付き距離関数 (SDF)
+     */
+    function sdRoundedBox(px, py, halfW, halfH, r) {
+      const qx = Math.abs(px) - halfW + r;
+      const qy = Math.abs(py) - halfH + r;
+      return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
+    }
+
+    /**
+     * 縁屈折ディスプレイスメントマップ生成
+     */
+    function buildDisplacementMap(width, height, radius, bezelWidth) {
+      const w = Math.max(4, Math.round(width));
+      const h = Math.max(4, Math.round(height));
+      const r = Math.min(radius, w / 2, h / 2);
+      const bezel = Math.max(2, Math.min(bezelWidth, Math.min(w, h) / 2));
+
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      const imgData = ctx.createImageData(w, h);
+      const data = imgData.data;
+
+      const halfW = w / 2;
+      const halfH = h / 2;
+
+      for (let y = 0; y < h; y++) {
+        const py = y + 0.5 - halfH;
+        for (let x = 0; x < w; x++) {
+          const px = x + 0.5 - halfW;
+          const idx = (y * w + x) * 4;
+
+          const sdf = sdRoundedBox(px, py, halfW, halfH, r);
+          const distFromEdge = -sdf;
+
+          if (distFromEdge <= 0 || distFromEdge >= bezel) {
+            data[idx] = 128;
+            data[idx + 1] = 128;
+            data[idx + 2] = 128;
+            data[idx + 3] = 255;
+          } else {
+            const t = 1 - distFromEdge / bezel;
+            const lensCurve = Math.sin(t * (Math.PI / 2)) ** 2;
+
+            const eps = 0.75;
+            const gx =
+              sdRoundedBox(px + eps, py, halfW, halfH, r) -
+              sdRoundedBox(px - eps, py, halfW, halfH, r);
+            const gy =
+              sdRoundedBox(px, py + eps, halfW, halfH, r) -
+              sdRoundedBox(px, py - eps, halfW, halfH, r);
+            const len = Math.hypot(gx, gy) || 1;
+
+            data[idx] = Math.round(128 + (gx / len) * lensCurve * 127);
+            data[idx + 1] = Math.round(128 + (gy / len) * lensCurve * 127);
+            data[idx + 2] = 128;
+            data[idx + 3] = 255;
+          }
+        }
+      }
+
+      ctx.putImageData(imgData, 0, 0);
+      return canvas.toDataURL("image/png");
+    }
+
+    /**
+     * 全 .liquid-glass 要素に対してSVG光学フィルターを構築・適用
+     */
+    function applyAllGlassFilters() {
+      defs.innerHTML = "";
+      const elements = Array.from(document.querySelectorAll(".liquid-glass"));
+
+      elements.forEach((el, index) => {
+        const width = Math.ceil(el.offsetWidth);
+        const height = Math.ceil(el.offsetHeight);
+        if (width < 2 || height < 2) return;
+
+        el.dataset.glassW = String(width);
+        el.dataset.glassH = String(height);
+
+        const style = getComputedStyle(el);
+        const rawRadius =
+          parseFloat(style.borderBottomLeftRadius) ||
+          parseFloat(style.borderTopLeftRadius) ||
+          0;
+
+        const baseBezel = parseFloat(el.dataset.bezel || "16");
+        const baseRefraction = parseFloat(el.dataset.refraction || "24");
+
+        const bezel = baseBezel * OPTICS.edgeThickness;
+        const scale = baseRefraction * OPTICS.refractionIndex;
+        const prismShift = OPTICS.prismDispersion * 0.35;
+
+        const filterId = `liquid-refract-${index}`;
+        const dataUrl = buildDisplacementMap(width, height, rawRadius, bezel);
+
+        const filterEl = document.createElementNS("http://www.w3.org/2000/svg", "filter");
+        filterEl.setAttribute("id", filterId);
+        filterEl.setAttribute("x", "0");
+        filterEl.setAttribute("y", "0");
+        filterEl.setAttribute("width", String(width));
+        filterEl.setAttribute("height", String(height));
+        filterEl.setAttribute("filterUnits", "userSpaceOnUse");
+        filterEl.setAttribute("primitiveUnits", "userSpaceOnUse");
+        filterEl.setAttribute("color-interpolation-filters", "sRGB");
+
+        const feImage = document.createElementNS("http://www.w3.org/2000/svg", "feImage");
+        feImage.setAttribute("href", dataUrl);
+        feImage.setAttribute("x", "0");
+        feImage.setAttribute("y", "0");
+        feImage.setAttribute("width", String(width));
+        feImage.setAttribute("height", String(height));
+        feImage.setAttribute("preserveAspectRatio", "none");
+        feImage.setAttribute("result", "dispMap");
+
+        const feDisp = document.createElementNS("http://www.w3.org/2000/svg", "feDisplacementMap");
+        feDisp.setAttribute("in", "SourceGraphic");
+        feDisp.setAttribute("in2", "dispMap");
+        feDisp.setAttribute("scale", scale.toFixed(1));
+        feDisp.setAttribute("xChannelSelector", "R");
+        feDisp.setAttribute("yChannelSelector", "G");
+        feDisp.setAttribute("result", "refracted");
+
+        const feDispR = document.createElementNS("http://www.w3.org/2000/svg", "feDisplacementMap");
+        feDispR.setAttribute("in", "SourceGraphic");
+        feDispR.setAttribute("in2", "dispMap");
+        feDispR.setAttribute("scale", (scale + prismShift).toFixed(1));
+        feDispR.setAttribute("xChannelSelector", "R");
+        feDispR.setAttribute("yChannelSelector", "G");
+        feDispR.setAttribute("result", "dispR");
+
+        const feDispB = document.createElementNS("http://www.w3.org/2000/svg", "feDisplacementMap");
+        feDispB.setAttribute("in", "SourceGraphic");
+        feDispB.setAttribute("in2", "dispMap");
+        feDispB.setAttribute("scale", Math.max(0, scale - prismShift).toFixed(1));
+        feDispB.setAttribute("xChannelSelector", "R");
+        feDispB.setAttribute("yChannelSelector", "G");
+        feDispB.setAttribute("result", "dispB");
+
+        const matR = document.createElementNS("http://www.w3.org/2000/svg", "feColorMatrix");
+        matR.setAttribute("type", "matrix");
+        matR.setAttribute("in", "dispR");
+        matR.setAttribute("values", "1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0");
+        matR.setAttribute("result", "chanR");
+
+        const matG = document.createElementNS("http://www.w3.org/2000/svg", "feColorMatrix");
+        matG.setAttribute("type", "matrix");
+        matG.setAttribute("in", "refracted");
+        matG.setAttribute("values", "0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0");
+        matG.setAttribute("result", "chanG");
+
+        const matB = document.createElementNS("http://www.w3.org/2000/svg", "feColorMatrix");
+        matB.setAttribute("type", "matrix");
+        matB.setAttribute("in", "dispB");
+        matB.setAttribute("values", "0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0");
+        matB.setAttribute("result", "chanB");
+
+        const blendRG = document.createElementNS("http://www.w3.org/2000/svg", "feBlend");
+        blendRG.setAttribute("mode", "screen");
+        blendRG.setAttribute("in", "chanR");
+        blendRG.setAttribute("in2", "chanG");
+        blendRG.setAttribute("result", "rg");
+
+        const blendRGB = document.createElementNS("http://www.w3.org/2000/svg", "feBlend");
+        blendRGB.setAttribute("mode", "screen");
+        blendRGB.setAttribute("in", "rg");
+        blendRGB.setAttribute("in2", "chanB");
+        blendRGB.setAttribute("result", "prismFinal");
+
+        filterEl.appendChild(feImage);
+        filterEl.appendChild(feDisp);
+        filterEl.appendChild(feDispR);
+        filterEl.appendChild(feDispB);
+        filterEl.appendChild(matR);
+        filterEl.appendChild(matG);
+        filterEl.appendChild(matB);
+        filterEl.appendChild(blendRG);
+        filterEl.appendChild(blendRGB);
+        defs.appendChild(filterEl);
+
+        const baseFilter = `blur(${OPTICS.frostBlur}px) saturate(145%) brightness(102%)`;
+        if (isChromium) {
+          el.style.backdropFilter = `url(#${filterId}) ${baseFilter}`;
+          el.style.webkitBackdropFilter = `url(#${filterId}) ${baseFilter}`;
+        } else {
+          el.style.backdropFilter = baseFilter;
+          el.style.webkitBackdropFilter = baseFilter;
+        }
+      });
+    }
+
+    // UI要素参照
+    const topBar = document.getElementById("top-bar");
+    const fileInput = document.getElementById("pdf-file-input");
+    const openFileBtn = document.getElementById("open-file-btn");
+    const heroSelectBtn = document.getElementById("hero-select-btn");
+    const dropZone = document.getElementById("drop-zone");
+    const progressBox = document.getElementById("progress-box");
+    const progressLabel = document.getElementById("progress-label");
+    const progressPercent = document.getElementById("progress-percent");
+    const progressFill = document.getElementById("progress-fill");
+    const pagesContainer = document.getElementById("pages-container");
+    const bottomDock = document.getElementById("bottom-dock");
+    const headerFilenameScroll = document.getElementById("header-filename-scroll");
+    const headerFilename = document.getElementById("header-filename");
+    const headerStatus = document.getElementById("header-status");
+    const currentPageLabel = document.getElementById("current-page-label");
+    const totalPagesLabel = document.getElementById("total-pages-label");
+    const overviewBackdrop = document.getElementById("overview-backdrop");
+    const overviewCloseBtn = document.getElementById("overview-close-btn");
+    const overviewGrid = document.getElementById("overview-grid");
+    const toastMsg = document.getElementById("toast-msg");
+
+    let currentPdfDoc = null;
+    let currentPageNum = 1;
+    let renderSessionId = 0;
+
+    // タイトル横スクロール状態に応じて左右のぼかしフェードマスクを更新
+    function updateTitleScrollFade() {
+      const el = headerFilenameScroll;
+      const hasOverflow = el.scrollWidth > el.clientWidth + 1;
+      if (!hasOverflow) {
+        el.classList.remove("can-scroll-left", "can-scroll-right");
+        return;
+      }
+      const atStart = el.scrollLeft <= 2;
+      const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 2;
+      el.classList.toggle("can-scroll-left", !atStart);
+      el.classList.toggle("can-scroll-right", !atEnd);
+    }
+
+    headerFilenameScroll.addEventListener("scroll", updateTitleScrollFade, { passive: true });
+
+    // マウスホイール（縦スクロール）でも長いタイトルを横スクロール可能にする
+    headerFilenameScroll.addEventListener("wheel", (e) => {
+      if (headerFilenameScroll.scrollWidth > headerFilenameScroll.clientWidth) {
+        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+          e.preventDefault();
+          headerFilenameScroll.scrollLeft += e.deltaY;
+        }
+      }
+    }, { passive: false });
+
+    // 上部固定バーの実寸に合わせて1枚目の上端余白を自動同期
+    function syncTopBarHeight() {
+      const h = topBar.offsetHeight || 60;
+      document.documentElement.style.setProperty("--top-bar-height", `${h}px`);
+    }
+
+    // 下部ページ表示ボタンの桁数変化（1桁→2桁・3桁）に合わせてLiquid Glassフィルターを再構築
+    function syncBottomDockGlass() {
+      if (!bottomDock.classList.contains("visible")) return;
+      const w = Math.ceil(bottomDock.offsetWidth);
+      const h = Math.ceil(bottomDock.offsetHeight);
+      if (String(w) !== bottomDock.dataset.glassW || String(h) !== bottomDock.dataset.glassH) {
+        applyAllGlassFilters();
+      }
+    }
+
+    if (typeof ResizeObserver !== "undefined") {
+      const dockResizeObserver = new ResizeObserver(() => {
+        syncBottomDockGlass();
+      });
+      dockResizeObserver.observe(bottomDock);
+    }
+
+    function showToast(text) {
+      toastMsg.textContent = text;
+      toastMsg.classList.add("show");
+      requestAnimationFrame(applyAllGlassFilters);
+      clearTimeout(toastMsg._timer);
+      toastMsg._timer = setTimeout(() => toastMsg.classList.remove("show"), 2600);
+    }
+
+    openFileBtn.addEventListener("click", () => {
+      openFileBtn.blur();
+      fileInput.click();
+    });
+    heroSelectBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      heroSelectBtn.blur();
+      fileInput.click();
+    });
+    dropZone.addEventListener("click", () => fileInput.click());
+
+    ["dragenter", "dragover"].forEach((evt) => {
+      window.addEventListener(evt, (e) => {
+        e.preventDefault();
+        dropZone.classList.add("drag-over");
+      });
+    });
+
+    ["dragleave", "drop"].forEach((evt) => {
+      window.addEventListener(evt, (e) => {
+        e.preventDefault();
+        dropZone.classList.remove("drag-over");
+      });
+    });
+
+    window.addEventListener("drop", (e) => {
+      const file = e.dataTransfer?.files?.[0];
+      if (file) handlePdfFile(file);
+    });
+
+    fileInput.addEventListener("change", (e) => {
+      const file = e.target.files?.[0];
+      if (file) handlePdfFile(file);
+      fileInput.value = "";
+    });
+
+    async function handlePdfFile(file) {
+      if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+        showToast("PDFファイル（.pdf）を選択してください");
+        return;
+      }
+
+      const session = ++renderSessionId;
+      closeOverviewModal();
+      headerFilename.textContent = file.name;
+      headerFilenameScroll.scrollLeft = 0;
+      headerStatus.textContent = "読み込み中...";
+      dropZone.style.display = "none";
+      pagesContainer.innerHTML = "";
+      overviewGrid.innerHTML = "";
+      progressBox.classList.add("visible");
+      progressLabel.textContent = "読み込み中...";
+      progressPercent.textContent = "0%";
+      progressFill.style.width = "0%";
+      syncTopBarHeight();
+      requestAnimationFrame(() => {
+        updateTitleScrollFade();
+        applyAllGlassFilters();
+      });
+
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+        currentPdfDoc = await loadingTask.promise;
+
+        if (session !== renderSessionId) return;
+
+        const totalPages = currentPdfDoc.numPages;
+        currentPageNum = 1;
+        currentPageLabel.textContent = "1";
+        totalPagesLabel.textContent = String(totalPages);
+        bottomDock.classList.add("visible");
+        requestAnimationFrame(() => {
+          updateTitleScrollFade();
+          applyAllGlassFilters();
+        });
+
+        await renderAllPages(session);
+
+        if (session === renderSessionId) {
+          progressBox.classList.remove("visible");
+          headerStatus.textContent = `全 ${totalPages} ページ`;
+          syncTopBarHeight();
+          requestAnimationFrame(() => {
+            updateTitleScrollFade();
+            applyAllGlassFilters();
+          });
+          showToast(`全 ${totalPages} ページを読み込みました`);
+        }
+      } catch (err) {
+        console.error(err);
+        progressBox.classList.remove("visible");
+        dropZone.style.display = "flex";
+        headerStatus.textContent = "読み込みエラー";
+        syncTopBarHeight();
+        requestAnimationFrame(() => {
+          updateTitleScrollFade();
+          applyAllGlassFilters();
+        });
+        showToast("PDFの読み込みに失敗しました");
+      }
+    }
+
+    async function renderAllPages(session) {
+      if (!currentPdfDoc) return;
+      const totalPages = currentPdfDoc.numPages;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const fullWidth = document.documentElement.clientWidth;
+
+      for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+        if (session !== renderSessionId) return;
+
+        const pct = Math.round(((pageNum - 1) / totalPages) * 100);
+        progressLabel.textContent = `ページ展開中 (${pageNum} / ${totalPages})`;
+        progressPercent.textContent = `${pct}%`;
+        progressFill.style.width = `${pct}%`;
+
+        const page = await currentPdfDoc.getPage(pageNum);
+        const unscaledViewport = page.getViewport({ scale: 1 });
+        const fitScale = fullWidth / unscaledViewport.width;
+        const viewport = page.getViewport({ scale: fitScale * dpr });
+
+        const pageItem = document.createElement("div");
+        pageItem.className = "pdf-page-item";
+        pageItem.id = `pdf-page-${pageNum}`;
+        pageItem.dataset.pageNumber = pageNum;
+
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+
+        pageItem.appendChild(canvas);
+        pagesContainer.appendChild(pageItem);
+
+        const ctx = canvas.getContext("2d", { alpha: false });
+        await page.render({ canvasContext: ctx, viewport }).promise;
+
+        // ページ一覧用サムネイルカードも生成（Liquid Glass適用）
+        const thumbCanvas = document.createElement("canvas");
+        const thumbScale = 220 / unscaledViewport.width;
+        const thumbViewport = page.getViewport({ scale: thumbScale });
+        thumbCanvas.width = Math.floor(thumbViewport.width);
+        thumbCanvas.height = Math.floor(thumbViewport.height);
+        await page.render({
+          canvasContext: thumbCanvas.getContext("2d", { alpha: false }),
+          viewport: thumbViewport
+        }).promise;
+
+        const thumbCard = document.createElement("button");
+        thumbCard.type = "button";
+        thumbCard.className = "liquid-glass thumb-card";
+        thumbCard.dataset.pageNumber = pageNum;
+        thumbCard.dataset.bezel = "12";
+        thumbCard.dataset.refraction = "18";
+
+        const imgWrap = document.createElement("div");
+        imgWrap.className = "thumb-img-wrap";
+
+        const img = document.createElement("img");
+        img.src = thumbCanvas.toDataURL("image/jpeg", 0.82);
+        img.alt = `${pageNum}ページ目`;
+        imgWrap.appendChild(img);
+
+        const label = document.createElement("span");
+        label.className = "thumb-label";
+        label.textContent = `${pageNum}`;
+
+        thumbCard.appendChild(imgWrap);
+        thumbCard.appendChild(label);
+
+        thumbCard.addEventListener("click", () => {
+          thumbCard.blur();
+          jumpToPage(pageNum);
+          closeOverviewModal();
+        });
+
+        overviewGrid.appendChild(thumbCard);
+      }
+
+      progressPercent.textContent = "100%";
+      progressFill.style.width = "100%";
+    }
+
+    // 指定ページへスムーズスクロールジャンプ（上部固定バーと重ならない位置へ移動）
+    function jumpToPage(pageNum) {
+      const target = document.getElementById(`pdf-page-${pageNum}`);
+      if (!target) return;
+      const topOffset = topBar.offsetHeight || 60;
+      const y = target.getBoundingClientRect().top + window.scrollY - topOffset;
+      window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+      currentPageNum = pageNum;
+      currentPageLabel.textContent = String(pageNum);
+      syncBottomDockGlass();
+    }
+
+    // ページ一覧モーダルの開閉（アニメーション付き）
+    function openOverviewModal() {
+      if (!currentPdfDoc) return;
+      bottomDock.blur();
+      const cards = Array.from(overviewGrid.querySelectorAll(".thumb-card"));
+      cards.forEach((card, idx) => {
+        const num = parseInt(card.dataset.pageNumber, 10);
+        card.classList.toggle("active", num === currentPageNum);
+        const delay = Math.min(idx, 18) * 24;
+        card.style.setProperty("--stagger-delay", `${delay}ms`);
+      });
+      bottomDock.classList.add("hidden-for-modal");
+      overviewBackdrop.setAttribute("aria-hidden", "false");
+      applyAllGlassFilters();
+      requestAnimationFrame(() => {
+        overviewBackdrop.classList.add("open");
+        const activeCard = overviewGrid.querySelector(".thumb-card.active");
+        if (activeCard) {
+          activeCard.scrollIntoView({ block: "center", behavior: "instant" });
+        }
+      });
+    }
+
+    function closeOverviewModal() {
+      overviewCloseBtn.blur();
+      overviewBackdrop.classList.remove("open");
+      overviewBackdrop.setAttribute("aria-hidden", "true");
+      bottomDock.classList.remove("hidden-for-modal");
+      const cards = overviewGrid.querySelectorAll(".thumb-card");
+      cards.forEach((card) => card.style.setProperty("--stagger-delay", "0ms"));
+    }
+
+    bottomDock.addEventListener("click", openOverviewModal);
+    overviewCloseBtn.addEventListener("click", closeOverviewModal);
+    overviewBackdrop.addEventListener("click", (e) => {
+      if (e.target === overviewBackdrop) closeOverviewModal();
+    });
+    overviewGrid.addEventListener("scroll", () => {
+      requestAnimationFrame(applyAllGlassFilters);
+    }, { passive: true });
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && overviewBackdrop.classList.contains("open")) {
+        closeOverviewModal();
+      }
+    });
+
+    // スクロール位置に応じた現在ページ番号の同期
+    window.addEventListener("scroll", () => {
+      if (!currentPdfDoc) return;
+      const items = document.querySelectorAll(".pdf-page-item");
+      const midY = window.innerHeight * 0.45;
+      for (const item of items) {
+        const rect = item.getBoundingClientRect();
+        if (rect.top <= midY && rect.bottom >= midY) {
+          const nextNum = parseInt(item.dataset.pageNumber, 10) || 1;
+          if (nextNum !== currentPageNum) {
+            currentPageNum = nextNum;
+            currentPageLabel.textContent = String(currentPageNum);
+            syncBottomDockGlass();
+          }
+          break;
+        }
+      }
+    }, { passive: true });
+
+    let resizeTimer = null;
+    window.addEventListener("resize", () => {
+      syncTopBarHeight();
+      updateTitleScrollFade();
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(applyAllGlassFilters, 120);
+    });
+
+    window.addEventListener("load", () => {
+      syncTopBarHeight();
+      updateTitleScrollFade();
+      requestAnimationFrame(applyAllGlassFilters);
+    });
+  </script>
+</body>
+</html>
